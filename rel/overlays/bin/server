@@ -1,0 +1,8 @@
+#!/bin/sh
+# Container entrypoint: apply pending migrations, then start the web server.
+# Migrations run in a separate short-lived VM so a failure stops the start.
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+./migrate
+PHX_SERVER=true exec ./mealplan start

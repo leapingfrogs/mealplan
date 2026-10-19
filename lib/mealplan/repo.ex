@@ -2,4 +2,50 @@ defmodule Mealplan.Repo do
   use Ecto.Repo,
     otp_app: :mealplan,
     adapter: Ecto.Adapters.Postgres
+
+  @doc """
+  Production Repo config from environment variables, called from
+  `config/runtime.exs`.
+
+  Either `DATABASE_URL` (`ecto://USER:PASS@HOST:PORT/DATABASE`) or discrete
+  variables, which avoid URL-escaping the password and let compose share it
+  with the Postgres container:
+
+    * `DATABASE_HOST` (default `db`), `DATABASE_PORT` (default `5432`)
+    * `DATABASE_NAME` (default `mealplan`), `DATABASE_USER` (default `mealplan`)
+    * `DATABASE_PASSWORD` (required)
+
+  `POOL_SIZE` defaults to 10; `ECTO_IPV6=true` connects over IPv6.
+  """
+  def config_from_env(env \\ System.get_env()) do
+    connection =
+      case present(env, "DATABASE_URL") do
+        nil ->
+          [
+            hostname: present(env, "DATABASE_HOST") || "db",
+            port: String.to_integer(present(env, "DATABASE_PORT") || "5432"),
+            database: present(env, "DATABASE_NAME") || "mealplan",
+            username: present(env, "DATABASE_USER") || "mealplan",
+            password:
+              present(env, "DATABASE_PASSWORD") ||
+                raise("environment variable DATABASE_PASSWORD (or DATABASE_URL) is missing")
+          ]
+
+        url ->
+          [url: url]
+      end
+
+    connection ++
+      [
+        pool_size: String.to_integer(present(env, "POOL_SIZE") || "10"),
+        socket_options: if(env["ECTO_IPV6"] in ~w(true 1), do: [:inet6], else: [])
+      ]
+  end
+
+  defp present(env, name) do
+    case env[name] do
+      "" -> nil
+      value -> value
+    end
+  end
 end

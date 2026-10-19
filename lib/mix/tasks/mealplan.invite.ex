@@ -9,12 +9,14 @@ defmodule Mix.Tasks.Mealplan.Invite do
 
   `--admin` grants access to admin pages such as the error dashboard.
 
-  In development the email appears at /dev/mailbox.
+  In development the email appears at /dev/mailbox. In production use
+  `Mealplan.Release.invite_user/2` instead.
   """
   use Mix.Task
   use MealplanWeb, :verified_routes
 
   alias Mealplan.Accounts
+  alias Mealplan.Release
 
   @requirements ["app.start"]
 
@@ -31,15 +33,11 @@ defmodule Mix.Tasks.Mealplan.Invite do
       {:ok, user} ->
         Mix.shell().info("Invited #{user.email}#{if user.admin, do: " (admin)"}")
 
-      {:error, changeset} ->
-        errors =
-          Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-            Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-              opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-            end)
-          end)
+      {:error, %Ecto.Changeset{} = changeset} ->
+        Mix.raise("Could not invite #{email}: #{Release.error_messages(changeset)}")
 
-        Mix.raise("Could not invite #{email}: #{inspect(errors)}")
+      {:error, reason} ->
+        Mix.raise("Created #{email} but could not send the invitation email: #{inspect(reason)}")
     end
   end
 end
