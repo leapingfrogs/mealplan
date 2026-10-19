@@ -77,13 +77,19 @@ defmodule MealplanWeb.TrustedProxy do
       |> Enum.flat_map(&String.split(&1, ","))
       |> Enum.map(&parse_ip/1)
       |> Enum.reverse()
-      |> Enum.reduce_while(peer, fn
-        nil, last -> {:halt, last}
-        ip, _last -> if trusted?(ip, trusted), do: {:cont, ip}, else: {:halt, ip}
-      end)
+      |> rightmost_untrusted(peer, trusted)
     else
       peer
     end
+  end
+
+  # Walk X-Forwarded-For right to left past trusted proxies. An unparseable
+  # entry stops the walk at the last hop we could verify.
+  defp rightmost_untrusted([], last, _trusted), do: last
+  defp rightmost_untrusted([nil | _rest], last, _trusted), do: last
+
+  defp rightmost_untrusted([ip | rest], _last, trusted) do
+    if trusted?(ip, trusted), do: rightmost_untrusted(rest, ip, trusted), else: ip
   end
 
   @doc """
