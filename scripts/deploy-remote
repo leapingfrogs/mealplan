@@ -5,7 +5,7 @@
 #
 #   sudo bash deploy-remote APP PROJECT IMAGE COMPOSE_FILE
 #
-# Uses only what TrueNAS ships: bash, docker, midclt and python3.
+# Uses only what TrueNAS ships: bash, docker and python3 with truenas_api_client.
 set -euo pipefail
 
 app=$1 project=$2 image=$3 compose=$4
@@ -31,7 +31,7 @@ runs_target() {
 
 [ "$(id -u)" = 0 ] || fail "must run as root"
 [ -s "$compose" ] || fail "compose file $compose missing or empty"
-command -v midclt >/dev/null || fail "midclt not found: is this TrueNAS?"
+python3 -c "import truenas_api_client" 2>/dev/null || fail "truenas_api_client not importable: is this TrueNAS?"
 
 app_ctr=$(container app)
 current=$( [ -n "$app_ctr" ] && docker inspect -f '{{.Config.Image}}' "$app_ctr" || echo "none")
@@ -51,10 +51,22 @@ log "taking pre-deploy dump"
 docker exec "$backup_ctr" bash /tmp/backup.sh manual | sed 's/^/[nas]   /'
 
 # The Custom App stores the whole compose document; replace it and let TrueNAS
-# recreate whatever changed. -j waits for the job and fails if it does.
+# recreate whatever changed. Uses the middleware's Python client directly (what
+# midclt wraps): passing the ~11 KB document as a midclt argument made midclt
+# echo it endlessly and get killed before the job was even submitted.
 log "updating TrueNAS app $app"
-payload=$(python3 -c 'import json, sys; print(json.dumps({"custom_compose_config_string": open(sys.argv[1]).read()}))' "$compose")
-midclt call -j app.update "$app" "$payload" >/dev/null
+python3 - "$app" "$compose" <<'PY'
+import sys
+from truenas_api_client import Client
+
+app, path = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    compose = f.read()
+with Client() as c:
+    # job=True waits for the update job and raises if it fails; pulling a new
+    # image can take longer than the client's default call timeout.
+    c.call("app.update", app, {"custom_compose_config_string": compose}, job=True, timeout=900)
+PY
 
 log "waiting for the app to run $image and report healthy"
 for _ in $(seq 1 60); do
