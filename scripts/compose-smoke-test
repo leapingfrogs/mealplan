@@ -31,11 +31,11 @@ trap cleanup EXIT
 # namespace, so chown through `podman unshare`; rootful Docker needs root.
 own() { if docker version 2>/dev/null | grep -qi podman; then podman unshare chown "$@"; else sudo chown "$@"; fi; }
 
-mkdir -p "$root/secrets" "$root/postgres"
+mkdir -p "$root/secrets" "$root/postgres" "$root/backups"
 head -c 24 /dev/urandom | base64 > "$root/secrets/db_password"
 chmod 440 "$root/secrets/db_password"
 own 10001:999 "$root/secrets/db_password"
-own 999:999 "$root/postgres"
+own 999:999 "$root/postgres" "$root/backups"
 
 # The published port is reached via the bridge gateway, so trust private ranges.
 cat > "$root/.env" <<ENV
@@ -63,4 +63,19 @@ check "proxied https log-in"    200 "$(probe -H 'X-Forwarded-Proto: https' "http
 check "proxied http redirects"  301 "$(probe "http://127.0.0.1:$port/users/log-in")"
 check "app container healthy"   healthy "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q app)")"
 check "db publishes no host ports" 0 "$(docker inspect -f '{{len .HostConfig.PortBindings}}' "$("${compose[@]}" ps -q db)")"
+check "backup container healthy" healthy "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q backup)")"
+
+# Backup and restore: a manual dump must restore into a fresh database with the
+# same migrations recorded as the live one.
+backup() { "${compose[@]}" exec -T backup bash -c 'export PGPASSWORD="$(cat /run/secrets/db_password)"; '"$1"; }
+backup "bash /tmp/backup.sh manual" >/dev/null
+check "manual dump written" 1 "$(backup 'ls /backups/manual/*.dump | wc -l' | tr -d ' ')"
+live=$(backup 'psql -tAc "select count(*) from schema_migrations"')
+restored=$(backup 'set -e
+  dropdb --if-exists restore_check
+  createdb restore_check
+  pg_restore --no-owner --exit-on-error -d restore_check "$(ls -1t /backups/manual/*.dump | head -1)"
+  psql -d restore_check -tAc "select count(*) from schema_migrations"
+  dropdb restore_check')
+check "restore matches live migrations ($live)" "$live" "$restored"
 exit $fail

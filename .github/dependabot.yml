@@ -45,6 +45,21 @@ updates:
       docker-images:
         patterns: ["*"]
 
+  # Postgres image used by the db and backup services in compose.yaml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    # Skip releases younger than two weeks (supply-chain safety margin).
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      compose-images:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directories:
       - /

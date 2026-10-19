@@ -84,6 +84,17 @@ docker-scan:
     docker save mealplan:local -o "$tar"
     {{ run }} trivy image --input "$tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
 
+# On-demand DB dump on the NAS via MEALPLAN_SSH (project: MEALPLAN_PROJECT, default ix-mealplan)
+backup-now:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nas="${MEALPLAN_SSH:?set MEALPLAN_SSH, e.g. root@truenas}"
+    project="${MEALPLAN_PROJECT:-ix-mealplan}"
+    ssh "$nas" "set -e
+      c=\$(docker ps -q --filter label=com.docker.compose.project=$project --filter label=com.docker.compose.service=backup)
+      [ -n \"\$c\" ] || { echo 'backup container not running in project $project' >&2; exit 1; }
+      docker exec \$c bash /tmp/backup.sh manual"
+
 # Show outdated Hex and npm dependencies
 outdated:
     {{ run }} mix hex.outdated
