@@ -23,15 +23,17 @@ Two layers protect the database:
 Weekly and monthly entries are hard links to the daily file, so they take no
 extra space until the daily copy is pruned.
 
-The service runs as uid 999 with no capabilities, so `MEALPLAN_ROOT/backups`
-must be owned by `999:999`.
+The service runs as uid 10999 with no capabilities, so `MEALPLAN_ROOT/backups`
+must be owned by `10999:10999`.
 
 ## Take a dump now
 
-From a workstation (run this before every deploy):
+From your workstation checkout (`just deploy` already takes one before every
+deploy). It uses `MEALPLAN_SSH` from `.env.deploy` and asks for your sudo
+password on the NAS, since Docker there needs root:
 
 ```sh
-MEALPLAN_SSH=root@truenas just backup-now
+just backup-now
 ```
 
 Or on the NAS:

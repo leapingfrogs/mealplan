@@ -45,9 +45,9 @@ The containers run as fixed, non-root users, and Docker on TrueNAS is rootful
 | `mealplan/` | `root:root` | `750` | only Docker (root) needs to read it |
 | `mealplan/.env` | `root:root` | `600` | read by Docker when starting the app |
 | `mealplan/secrets/` | `root:root` | `700` | |
-| `mealplan/secrets/db_password` | `10001:999` | `440` | app (uid 10001) and Postgres (gid 999) read it |
-| `mealplan/postgres/` | `999:999` | `700` | Postgres runs as 999 and requires `0700` |
-| `mealplan/backups/` | `999:999` | `750` | backup service runs as 999 |
+| `mealplan/secrets/db_password` | `10001:10999` | `440` | app (uid 10001) and Postgres (gid 10999) read it |
+| `mealplan/postgres/` | `10999:10999` | `700` | Postgres runs as 10999 and requires `0700` |
+| `mealplan/backups/` | `10999:10999` | `750` | backup service runs as 10999 |
 
 **NAS shell:**
 
@@ -57,7 +57,7 @@ mkdir -p "$root/secrets"
 chown root:root "$root" "$root/secrets"
 chmod 750 "$root"
 chmod 700 "$root/secrets"
-chown 999:999 "$root/postgres" "$root/backups"
+chown 10999:10999 "$root/postgres" "$root/backups"
 chmod 700 "$root/postgres"
 chmod 750 "$root/backups"
 ```
@@ -70,7 +70,7 @@ Generated on the NAS so it never leaves it. **NAS shell:**
 root=/mnt/<pool>/apps/mealplan
 umask 077
 openssl rand -base64 32 > "$root/secrets/db_password"
-chown 10001:999 "$root/secrets/db_password"
+chown 10001:10999 "$root/secrets/db_password"
 chmod 440 "$root/secrets/db_password"
 ```
 
@@ -157,7 +157,7 @@ there too. Expect `acltype posix` on all three datasets, `recordsize 16K` and
 in `.env`).
 
 Expected owners (numeric): `.env` 0:0 `-rw-------`, `secrets/db_password`
-10001:999 `-r--r-----`, `postgres` 999:999 `drwx------`, `backups` 999:999
+10001:10999 `-r--r-----`, `postgres` 10999:10999 `drwx------`, `backups` 10999:10999
 `drwxr-x---`.
 
 ## 7. Install the Custom App
@@ -298,3 +298,21 @@ migrations the older one doesn't expect, restore the pre-deploy dump
 If the app doesn't become healthy, the script prints its last log lines and the
 previous image. The Custom App then still has the new YAML; deploy the previous
 version to go back.
+
+### One-time: moving the database off uid 999
+
+Installs made before the database and backup services ran as `10999:10999`
+have their files owned by `999:999`, which on TrueNAS is the host's `netdata`
+user and `docker` group. To move them (NAS shell as root for the `chown`s):
+
+1. Take a dump while everything still runs: `just backup-now`.
+2. **Apps → mealplan → Stop.**
+3. Re-own the files:
+   ```sh
+   root=/mnt/storage/Apps/mealplan
+   chown -R 10999:10999 "$root/postgres" "$root/backups"
+   chown 10001:10999 "$root/secrets/db_password"
+   ```
+4. From the workstation: `just deploy <current version>`. The deploy sees the
+   compose configuration changed, skips the pre-deploy dump because the app is
+   stopped (step 1 took one), updates the app and starts it.

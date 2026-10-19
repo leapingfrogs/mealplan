@@ -16,7 +16,7 @@ cleanup() {
   local status=$?
   "${compose[@]}" down --volumes --timeout 30 >/dev/null 2>&1 || true
   docker network rm "$NPM_NETWORK" >/dev/null 2>&1 || true
-  # Postgres files belong to uid 999, so removing them needs the same privilege
+  # Postgres files belong to uid 10999, so removing them needs the same privilege
   # as the chown below.
   if docker version 2>/dev/null | grep -qi podman; then
     podman unshare rm -rf "$root" || echo "warning: could not remove $root" >&2
@@ -34,8 +34,8 @@ own() { if docker version 2>/dev/null | grep -qi podman; then podman unshare cho
 mkdir -p "$root/secrets" "$root/postgres" "$root/backups"
 head -c 24 /dev/urandom | base64 > "$root/secrets/db_password"
 chmod 440 "$root/secrets/db_password"
-own 10001:999 "$root/secrets/db_password"
-own 999:999 "$root/postgres" "$root/backups"
+own 10001:10999 "$root/secrets/db_password"
+own 10999:10999 "$root/postgres" "$root/backups"
 
 # The published port is reached via the bridge gateway, so trust private ranges.
 cat > "$root/.env" <<ENV
