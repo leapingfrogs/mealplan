@@ -1,0 +1,9 @@
+{
+  "name": "mealplan-tooling",
+  "private": true,
+  "description": "Dev tooling only (commitlint); the app's assets are built by esbuild/tailwind via mix.",
+  "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3"
+  }
+}

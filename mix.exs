@@ -30,7 +30,7 @@ defmodule Mealplan.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [precommit: :test, ci: :test]
     ]
   end
 
@@ -103,7 +103,15 @@ defmodule Mealplan.MixProject do
         "esbuild mealplan --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
+      # The checks CI runs; `just check` runs this plus commit-message linting.
+      ci: [
+        "format --check-formatted",
+        "deps.unlock --check-unused",
+        "hex.audit",
+        "compile --warnings-as-errors --force",
+        "test --warnings-as-errors"
+      ]
     ]
   end
 end
