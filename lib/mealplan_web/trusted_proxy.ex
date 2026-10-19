@@ -52,7 +52,7 @@ defmodule MealplanWeb.TrustedProxy do
     e in ArgumentError ->
       reraise ArgumentError,
               "#{name} in the environment is invalid: #{Exception.message(e)}" <>
-                " (expected comma-separated CIDRs, e.g. #{name}=172.16.8.0/24,fdd0::/64)",
+                " (expected comma-separated CIDRs, e.g. #{name}=172.16.5.0/24,fdd0::/64)",
               __STACKTRACE__
   end
 

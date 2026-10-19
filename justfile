@@ -108,7 +108,7 @@ truenas-yaml version:
 backup-now:
     #!/usr/bin/env bash
     set -euo pipefail
-    nas="${MEALPLAN_SSH:?set MEALPLAN_SSH in .env.deploy, e.g. truenas_admin@truenas-scale}"
+    nas="${MEALPLAN_SSH:?set MEALPLAN_SSH in .env.deploy, e.g. admin@nas}"
     project="${MEALPLAN_PROJECT:-ix-mealplan}"
     [[ $project =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "invalid MEALPLAN_PROJECT: $project" >&2; exit 2; }
     # Docker on the NAS needs root, so this runs under sudo (one password prompt).
