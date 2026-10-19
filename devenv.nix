@@ -44,6 +44,22 @@ in
   env.HEX_HOME = "${config.devenv.state}/hex";
   env.ERL_AFLAGS = "-kernel shell_history enabled";
 
+  # Local Postgres matching the production major version (compose.yaml).
+  # Start with `devenv up`. If 5432 is taken devenv allocates a free port;
+  # either way PGHOST/PGPORT are exported for the Phoenix dev/test config.
+  # Ecto creates mealplan_dev / mealplan_test itself, so the role only needs
+  # CREATEDB rather than superuser.
+  services.postgres = {
+    enable = true;
+    package = pkgs.postgresql_18;
+    listen_addresses = "127.0.0.1";
+    port = 5432;
+    createDatabase = false;
+    initialScript = ''
+      CREATE ROLE mealplan WITH LOGIN PASSWORD 'mealplan' CREATEDB;
+    '';
+  };
+
   tasks."mealplan:install-phx-new" = {
     exec = ''
       mix local.hex --force --if-missing
