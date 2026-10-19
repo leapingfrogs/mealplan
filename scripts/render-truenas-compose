@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Renders compose.yaml for a TrueNAS Custom App: substitutes MEALPLAN_VERSION,
+# MEALPLAN_ROOT and NPM_NETWORK (TrueNAS stores a literal YAML document with no
+# .env beside it) and leaves everything else untouched, including the backup
+# script's $$-escaped variables, which Docker Compose still unescapes.
+#
+#   scripts/render-truenas-compose VERSION ROOT NPM_NETWORK > mealplan.yaml
+#   scripts/render-truenas-compose v0.1.0 /mnt/storage/Apps/mealplan ix-nginx-proxy-manager_default
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [ $# -ne 3 ]; then
+  echo "usage: $0 VERSION ROOT NPM_NETWORK" >&2
+  exit 2
+fi
+version=$1 root=$2 network=$3
+
+# Strict formats: the values are written into YAML unquoted.
+[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must look like v1.2.3, got: $version" >&2; exit 2; }
+[[ $root =~ ^/mnt/[A-Za-z0-9._/-]*[A-Za-z0-9._-]$ ]] || { echo "ROOT must be an absolute /mnt/... path without spaces or a trailing slash, got: $root" >&2; exit 2; }
+[[ $network =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || { echo "NPM_NETWORK is not a valid Docker network name: $network" >&2; exit 2; }
+
+rendered=$(
+  MEALPLAN_VERSION=$version MEALPLAN_ROOT=$root NPM_NETWORK=$network perl -pe '
+    s/(?<!\$)\$\{(MEALPLAN_VERSION|MEALPLAN_ROOT|NPM_NETWORK):\?[^}]*\}/$ENV{$1}/g
+  ' compose.yaml
+)
+
+# Anything left that Compose would interpolate means compose.yaml gained a new
+# variable this script doesn't know about.
+if leftover=$(grep -nP '(?<!\$)\$\{' <<<"$rendered"); then
+  echo "unsubstituted variables remain in the rendered YAML:" >&2
+  echo "$leftover" >&2
+  exit 1
+fi
+
+printf '%s\n' "$rendered"

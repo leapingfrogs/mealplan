@@ -1,7 +1,8 @@
 # Production stack for the TrueNAS Custom App (Docker Compose).
 #
-# Required variables (substituted by `just deploy`; nothing has a default so
-# nothing is guessed):
+# Required variables (nothing has a default, so nothing is guessed). TrueNAS
+# stores a literal YAML document, so scripts/render-truenas-compose substitutes
+# them before it is pasted into the Custom App (and `just deploy` reuses it):
 #   MEALPLAN_VERSION  image tag to run, e.g. v0.1.0
 #   MEALPLAN_ROOT     app directory on the NAS dataset, laid out as:
 #                       .env                  app settings (see .env.example), mode 600
@@ -30,8 +31,11 @@ services:
       db:
         condition: service_healthy
     networks:
-      - internal
-      - proxy
+      internal: {}
+      # NPM forwards to mealplan:4000; the alias avoids clashing with other
+      # apps' generic service names on the shared network.
+      proxy:
+        aliases: [mealplan]
     # The image runs as uid 10001 and only writes to /tmp.
     read_only: true
     tmpfs:
