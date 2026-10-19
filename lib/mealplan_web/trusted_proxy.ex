@@ -40,6 +40,22 @@ defmodule MealplanWeb.TrustedProxy do
     |> Enum.map(&parse_cidr!/1)
   end
 
+  @doc """
+  Parses the trusted proxies from environment variable `name` (default
+  `TRUSTED_PROXIES`), naming the variable in the error so a typo in `.env`
+  is easy to find.
+  """
+  @spec from_env!(String.t(), %{String.t() => String.t()}) :: [cidr()]
+  def from_env!(name \\ "TRUSTED_PROXIES", env \\ System.get_env()) do
+    parse_cidrs!(env[name])
+  rescue
+    e in ArgumentError ->
+      reraise ArgumentError,
+              "#{name} in the environment is invalid: #{Exception.message(e)}" <>
+                " (expected comma-separated CIDRs, e.g. #{name}=172.16.8.0/24,fdd0::/64)",
+              __STACKTRACE__
+  end
+
   defp parse_cidr!(cidr) do
     {address, prefix} =
       case String.split(cidr, "/", parts: 2) do

@@ -33,6 +33,25 @@ defmodule MealplanWeb.TrustedProxyTest do
     end
   end
 
+  describe "from_env!/2" do
+    test "reads TRUSTED_PROXIES" do
+      assert TrustedProxy.from_env!("TRUSTED_PROXIES", %{"TRUSTED_PROXIES" => "172.16.8.0/24"}) ==
+               [{{172, 16, 8, 0}, 24}]
+
+      assert TrustedProxy.from_env!("TRUSTED_PROXIES", %{}) == []
+    end
+
+    test "names the variable when the value is invalid" do
+      assert_raise ArgumentError,
+                   ~r/^TRUSTED_PROXIES in the environment is invalid: .*"=172.16.8.0\/24"/,
+                   fn ->
+                     TrustedProxy.from_env!("TRUSTED_PROXIES", %{
+                       "TRUSTED_PROXIES" => "=172.16.8.0/24"
+                     })
+                   end
+    end
+  end
+
   describe "client_ip/3" do
     test "ignores X-Forwarded-For from an untrusted peer" do
       assert TrustedProxy.client_ip({203, 0, 113, 9}, ["1.2.3.4"], @trusted) == {203, 0, 113, 9}

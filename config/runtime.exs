@@ -91,5 +91,5 @@ if config_env() == :prod do
   # Manager). X-Forwarded-For/-Proto are ignored from any other peer.
   config :mealplan,
          :trusted_proxies,
-         MealplanWeb.TrustedProxy.parse_cidrs!(System.get_env("TRUSTED_PROXIES"))
+         MealplanWeb.TrustedProxy.from_env!()
 end
