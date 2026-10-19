@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Runs ON THE NAS as root, started by scripts/deploy: takes a pre-deploy dump,
+# points the TrueNAS Custom App at the new compose YAML, and waits until the app
+# container runs the new image and is healthy.
+#
+#   sudo bash deploy-remote APP PROJECT IMAGE COMPOSE_FILE
+#
+# Uses only what TrueNAS ships: bash, docker, midclt and python3.
+set -euo pipefail
+
+app=$1 project=$2 image=$3 compose=$4
+
+log() { echo "[nas] $*"; }
+fail() { echo "[nas] ERROR: $*" >&2; exit 1; }
+
+container() {
+  docker ps -q \
+    --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=$1"
+}
+
+# True when container $1 runs the target image: same reference, or same digest
+# (Docker may record the reference differently from how compose wrote it).
+runs_target() {
+  local ref digests
+  ref=$(docker inspect -f '{{.Config.Image}}' "$1")
+  [ "$ref" = "$image" ] && return 0
+  digests=$(docker image inspect -f '{{join .RepoDigests " "}}' "$(docker inspect -f '{{.Image}}' "$1")")
+  [[ " $digests " == *" ${image%%:*}@${image##*@} "* ]]
+}
+
+[ "$(id -u)" = 0 ] || fail "must run as root"
+[ -s "$compose" ] || fail "compose file $compose missing or empty"
+command -v midclt >/dev/null || fail "midclt not found: is this TrueNAS?"
+
+app_ctr=$(container app)
+current=$( [ -n "$app_ctr" ] && docker inspect -f '{{.Config.Image}}' "$app_ctr" || echo "none")
+log "app:     $app (project $project)"
+log "running: $current"
+log "target:  $image"
+
+if [ -n "$app_ctr" ] && runs_target "$app_ctr" && [ "$(docker inspect -f '{{.State.Health.Status}}' "$app_ctr")" = healthy ]; then
+  log "already running the target image and healthy; nothing to do"
+  exit 0
+fi
+
+# Pre-deploy dump, so a bad migration can be undone (docs/backups.md).
+backup_ctr=$(container backup)
+[ -n "$backup_ctr" ] || fail "backup container not running; refusing to deploy without a pre-deploy dump"
+log "taking pre-deploy dump"
+docker exec "$backup_ctr" bash /tmp/backup.sh manual | sed 's/^/[nas]   /'
+
+# The Custom App stores the whole compose document; replace it and let TrueNAS
+# recreate whatever changed. -j waits for the job and fails if it does.
+log "updating TrueNAS app $app"
+payload=$(python3 -c 'import json, sys; print(json.dumps({"custom_compose_config_string": open(sys.argv[1]).read()}))' "$compose")
+midclt call -j app.update "$app" "$payload" >/dev/null
+
+log "waiting for the app to run $image and report healthy"
+for _ in $(seq 1 60); do
+  app_ctr=$(container app)
+  if [ -n "$app_ctr" ]; then
+    health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$app_ctr")
+    if runs_target "$app_ctr" && [ "$health" = healthy ]; then
+      log "healthy on $image"
+      log "previous image was $current"
+      exit 0
+    fi
+  fi
+  sleep 5
+done
+
+log "app did not become healthy within 5 minutes; last log lines:"
+[ -n "$app_ctr" ] && docker logs --tail 30 "$app_ctr" 2>&1 | sed 's/^/[nas]   /'
+fail "deploy of $image failed (previous image: $current)"

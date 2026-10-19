@@ -210,3 +210,7 @@ jobs:
           echo "${ACTIONLINT_SHA256}  ${tarball}" | sha256sum --check --strict
           tar -xzf "${tarball}" actionlint
       - run: ./actionlint -color
+      # Deploy and test scripts run as root on the NAS; shellcheck ships with
+      # the runner image.
+      - name: shellcheck scripts
+        run: shellcheck --severity=warning scripts/*

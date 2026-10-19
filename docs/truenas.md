@@ -249,3 +249,52 @@ NPM's startup runs a recursive `chown` over its bundled certbot, which can take
 15 minutes or more on ZFS-backed app storage. Setting the environment variable
 `SKIP_CERTBOT_OWNERSHIP=true` on the NPM app (Edit → environment variables)
 skips it.
+
+## 10. Deploying new versions
+
+`just deploy vX.Y.Z` (from a workstation, over SSH) replaces the Custom App's
+YAML with the new version pinned by digest. Steps it performs:
+
+1. looks up the tag's digest on GHCR and verifies its build provenance with
+   `gh attestation verify` (only images built by this repo's release workflow
+   deploy)
+2. renders `compose.yaml` with `image: …:vX.Y.Z@sha256:…`
+3. copies it and `scripts/deploy-remote` to `~/.mealplan-deploy/` on the NAS
+4. runs `deploy-remote` with `sudo` (**one password prompt**), which takes a
+   pre-deploy `pg_dump`, calls `midclt call -j app.update mealplan …`, and
+   waits until the app runs the new image and is healthy
+5. checks `MEALPLAN_URL/health/ready` from outside
+
+Running it again for the version already deployed is a no-op.
+
+### One-time setup
+
+1. **SSH key login for the admin user.** Credentials → Users →
+   `truenas_admin` → Edit: paste your public key into **SSH Public Key**, keep
+   **Allowed sudo commands: ALL** (password required, not "no password").
+2. **SSH service.** System → Services → SSH: enable and start automatically.
+   In its settings, leave password authentication off.
+3. **Workstation settings.** `cp .env.deploy.example .env.deploy` and set
+   `MEALPLAN_SSH=truenas_admin@truenas-scale` (the tailnet name). Check with
+   `ssh truenas_admin@truenas-scale true`.
+
+`gh` must be logged in on the workstation (`gh auth status`) for the
+provenance check.
+
+### Deploy, check, roll back
+
+```sh
+just deploy v0.1.1
+just deploy --dry-run v0.1.1
+just rollback v0.1.0
+```
+
+`--dry-run` verifies and renders without
+touching the NAS. `just rollback` redeploys an earlier version after asking:
+code is rolled back but the database is not, so if the newer release ran
+migrations the older one doesn't expect, restore the pre-deploy dump
+(`backups/manual/`, see [backups.md](backups.md)).
+
+If the app doesn't become healthy, the script prints its last log lines and the
+previous image. The Custom App then still has the new YAML; deploy the previous
+version to go back.
