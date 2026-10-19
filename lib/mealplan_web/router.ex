@@ -1,6 +1,8 @@
 defmodule MealplanWeb.Router do
   use MealplanWeb, :router
 
+  use ErrorTracker.Web, :router
+
   import MealplanWeb.UserAuth
 
   pipeline :browser do
@@ -59,6 +61,18 @@ defmodule MealplanWeb.Router do
       live_dashboard "/dashboard", metrics: MealplanWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  ## Admin routes
+
+  # Logged-in admins only. Non-admins get a 404 from :require_admin; the
+  # LiveView mount re-checks via the :require_admin on_mount hook.
+  scope "/admin" do
+    pipe_through [:browser, :require_authenticated_user, :require_admin]
+
+    error_tracker_dashboard "/errors",
+      on_mount: [{MealplanWeb.UserAuth, :require_admin}],
+      csp_nonce_assign_key: :csp_nonce
   end
 
   ## Authentication routes

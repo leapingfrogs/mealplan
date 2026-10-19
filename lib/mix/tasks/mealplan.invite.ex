@@ -5,6 +5,9 @@ defmodule Mix.Tasks.Mealplan.Invite do
   Creates an account for the given email and sends it a magic login link.
 
       $ mix mealplan.invite person@example.com
+      $ mix mealplan.invite --admin person@example.com
+
+  `--admin` grants access to admin pages such as the error dashboard.
 
   In development the email appears at /dev/mailbox.
   """
@@ -16,10 +19,17 @@ defmodule Mix.Tasks.Mealplan.Invite do
   @requirements ["app.start"]
 
   @impl Mix.Task
-  def run([email]) do
-    case Accounts.invite_user(email, &url(~p"/users/log-in/#{&1}")) do
+  def run(args) do
+    case OptionParser.parse(args, strict: [admin: :boolean]) do
+      {opts, [email], []} -> invite(email, opts)
+      _ -> Mix.raise("Usage: mix mealplan.invite [--admin] EMAIL")
+    end
+  end
+
+  defp invite(email, opts) do
+    case Accounts.invite_user(email, &url(~p"/users/log-in/#{&1}"), opts) do
       {:ok, user} ->
-        Mix.shell().info("Invited #{user.email}")
+        Mix.shell().info("Invited #{user.email}#{if user.admin, do: " (admin)"}")
 
       {:error, changeset} ->
         errors =
@@ -32,6 +42,4 @@ defmodule Mix.Tasks.Mealplan.Invite do
         Mix.raise("Could not invite #{email}: #{inspect(errors)}")
     end
   end
-
-  def run(_args), do: Mix.raise("Usage: mix mealplan.invite EMAIL")
 end

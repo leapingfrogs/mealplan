@@ -3,7 +3,8 @@ defmodule MealplanWeb.Plugs.ContentSecurityPolicy do
   Sets a strict Content-Security-Policy with a per-request script nonce.
 
   Only same-origin scripts, styles, images and connections are allowed.
-  Inline scripts must carry `nonce={@csp_nonce}`; inline `style` attributes
+  Inline `<script>` and `<style>` blocks must carry `nonce={@csp_nonce}` (the
+  ErrorTracker dashboard inlines its assets this way); inline `style` attributes
   are not permitted (styles set from JavaScript via the CSSOM still work).
   `data:` images are allowed for the heroicons CSS masks.
   """
@@ -28,7 +29,7 @@ defmodule MealplanWeb.Plugs.ContentSecurityPolicy do
       [
         "default-src 'self'",
         "script-src 'self' 'nonce-#{nonce}'",
-        "style-src 'self'",
+        "style-src 'self' 'nonce-#{nonce}'",
         "img-src 'self' data:",
         "font-src 'self'",
         "connect-src 'self'",

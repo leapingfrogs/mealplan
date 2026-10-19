@@ -86,6 +86,14 @@ config :phoenix, :json_library, Jason
 # Keep secrets and magic-link tokens out of request logs.
 config :phoenix, :filter_parameters, ["password", "token"]
 
+# Self-hosted error tracking: errors are stored in our own Postgres and viewed
+# at /admin/errors. Only resolved errors are pruned, after 30 days.
+config :error_tracker,
+  repo: Mealplan.Repo,
+  otp_app: :mealplan,
+  filter: MealplanWeb.Redact,
+  plugins: [{ErrorTracker.Plugins.Pruner, max_age: :timer.hours(24 * 30)}]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

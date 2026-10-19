@@ -87,6 +87,10 @@ defmodule Mealplan.Accounts do
   Registers the user and emails them a magic link; following it confirms
   the account and logs them in.
 
+  ## Options
+
+    * `:admin` - make the user an administrator. Defaults to `false`.
+
   ## Examples
 
       iex> invite_user("new@example.com", magic_link_url_fun)
@@ -96,11 +100,27 @@ defmodule Mealplan.Accounts do
       {:error, %Ecto.Changeset{}}
 
   """
-  def invite_user(email, magic_link_url_fun) when is_function(magic_link_url_fun, 1) do
-    with {:ok, user} <- register_user(%{email: email}),
+  def invite_user(email, magic_link_url_fun, opts \\ [])
+      when is_function(magic_link_url_fun, 1) do
+    with {:ok, user} <-
+           %User{admin: Keyword.get(opts, :admin, false)}
+           |> User.email_changeset(%{email: email})
+           |> Repo.insert(),
          {:ok, _email} <- deliver_login_instructions(user, magic_link_url_fun) do
       {:ok, user}
     end
+  end
+
+  @doc """
+  Grants or revokes administrator rights.
+
+  Not exposed in the UI; used from the console or release tasks.
+  """
+  def set_admin(%User{} = user, admin?) when is_boolean(admin?) do
+    user
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.force_change(:admin, admin?)
+    |> Repo.update()
   end
 
   ## Settings

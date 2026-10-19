@@ -8,7 +8,7 @@ defmodule MealplanWeb.SecurityHeadersTest do
     [csp] = get_resp_header(conn, "content-security-policy")
 
     assert csp =~ "default-src 'self'"
-    assert csp =~ "style-src 'self';"
+    assert csp =~ "style-src 'self' 'nonce-"
     assert csp =~ "object-src 'none'"
     assert csp =~ "frame-ancestors 'none'"
     refute csp =~ "unsafe-inline"

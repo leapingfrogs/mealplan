@@ -389,7 +389,20 @@ defmodule Mealplan.AccountsTest do
     end
   end
 
-  describe "invite_user/2" do
+  describe "set_admin/2" do
+    test "grants and revokes admin" do
+      user = user_fixture()
+      refute user.admin
+
+      assert {:ok, %{admin: true}} = Accounts.set_admin(user, true)
+      assert Accounts.get_user!(user.id).admin
+
+      assert {:ok, %{admin: false}} = Accounts.set_admin(user, false)
+      refute Accounts.get_user!(user.id).admin
+    end
+  end
+
+  describe "invite_user/3" do
     test "registers an unconfirmed user and emails a magic link that confirms them" do
       email = unique_user_email()
 

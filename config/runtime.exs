@@ -41,6 +41,11 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # One JSON object per line for the container log driver, with request_id
+  # to correlate a request's lines. Params are filtered by :filter_parameters.
+  config :logger, :default_handler,
+    formatter: LoggerJSON.Formatters.Basic.new(metadata: [:request_id])
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

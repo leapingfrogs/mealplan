@@ -231,6 +231,18 @@ defmodule MealplanWeb.UserAuth do
     end
   end
 
+  # Defence in depth: the HTTP request is already checked by `require_admin`,
+  # but the websocket mount re-reads the session independently.
+  def on_mount(:require_admin, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    if admin?(socket.assigns.current_scope) do
+      {:cont, socket}
+    else
+      {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/")}
+    end
+  end
+
   def on_mount(:require_sudo_mode, _params, session, socket) do
     socket = mount_current_scope(socket, session)
 
@@ -279,6 +291,28 @@ defmodule MealplanWeb.UserAuth do
       |> halt()
     end
   end
+
+  @doc """
+  Plug for routes that require an administrator.
+
+  Use after `require_authenticated_user`. Non-admins get a 404 so admin
+  pages are not advertised.
+  """
+  def require_admin(conn, _opts) do
+    if admin?(conn.assigns.current_scope) do
+      conn
+    else
+      conn
+      |> put_status(:not_found)
+      |> put_root_layout(false)
+      |> put_view(html: MealplanWeb.ErrorHTML)
+      |> render(:"404")
+      |> halt()
+    end
+  end
+
+  defp admin?(%Scope{user: %{admin: true}}), do: true
+  defp admin?(_scope), do: false
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))

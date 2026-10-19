@@ -30,6 +30,9 @@ mealplan-*.tar
 
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
+# Other `mix phx.digest` output (digested copies and gzips of static files).
+/priv/static/**/*.gz
+/priv/static/**/*-????????????????????????????????.*
 
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
