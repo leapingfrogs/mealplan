@@ -19,6 +19,7 @@ defmodule Mealplan.MixProject do
         plt_add_apps: [:mix],
         flags: [:unmatched_returns, :extra_return, :missing_return, :error_handling]
       ],
+      test_coverage: [tool: ExCoveralls],
       releases: [
         mealplan: [include_executables_for: [:unix]]
       ]
@@ -37,7 +38,14 @@ defmodule Mealplan.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test, ci: :test]
+      preferred_envs: [
+        precommit: :test,
+        ci: :test,
+        coveralls: :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test,
+        "coveralls.github": :test
+      ]
     ]
   end
 
@@ -92,7 +100,8 @@ defmodule Mealplan.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false},
-      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test}
     ]
   end
 
@@ -116,13 +125,17 @@ defmodule Mealplan.MixProject do
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
-      # The checks CI runs; `just check` runs this plus commit-message linting.
+      # The checks CI runs (Dialyzer is separate: it is slow). `just check` runs
+      # this plus Dialyzer and commit-message linting.
       ci: [
         "format --check-formatted",
         "deps.unlock --check-unused",
         "hex.audit",
+        "deps.audit",
         "compile --warnings-as-errors --force",
-        "test --warnings-as-errors"
+        "credo --strict",
+        "sobelow --config",
+        "coveralls --warnings-as-errors"
       ]
     ]
   end

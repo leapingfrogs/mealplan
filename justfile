@@ -33,9 +33,18 @@ fmt:
 test *args:
     {{ run }} mix test {{ args }}
 
-# Everything CI checks: formatting, warnings, audits, tests, commit messages
+# Everything CI checks: commits, format, Credo, Sobelow, audits, coverage, Dialyzer
 check: lint-commits
     {{ run }} mix ci
+    {{ run }} mix dialyzer
+
+# Type-check with Dialyzer (first run builds PLTs into priv/plts)
+dialyzer:
+    {{ run }} mix dialyzer
+
+# Test coverage report in cover/excoveralls.html
+cover:
+    {{ run }} mix coveralls.html
 
 # Lint descriptions of unpushed commits (trunk()..@) against Conventional Commits
 lint-commits:
