@@ -5,7 +5,7 @@
 #
 #   sudo bash deploy-remote APP PROJECT IMAGE COMPOSE_FILE
 #
-# Uses only what TrueNAS ships: bash, docker and python3 with truenas_api_client.
+# Uses only what TrueNAS ships: bash, docker, python3 (truenas_api_client, yaml).
 set -euo pipefail
 
 app=$1 project=$2 image=$3 compose=$4
@@ -31,42 +31,75 @@ runs_target() {
 
 [ "$(id -u)" = 0 ] || fail "must run as root"
 [ -s "$compose" ] || fail "compose file $compose missing or empty"
-python3 -c "import truenas_api_client" 2>/dev/null || fail "truenas_api_client not importable: is this TrueNAS?"
+python3 -c "import truenas_api_client, yaml" 2>/dev/null || fail "truenas_api_client/yaml not importable: is this TrueNAS?"
 
+# Talks to the TrueNAS middleware through its Python client (what midclt wraps;
+# passing the ~11 KB document as a midclt argument got midclt killed).
+#   api state            -> RUNNING / STOPPED / ... for the app
+#   api config-matches   -> exit 0 if the stored compose equals $compose
+#   api update           -> replace the compose document (waits for the job)
+#   api start            -> start the app (waits for the job)
+api() {
+  python3 - "$1" "$app" "$compose" <<'PY'
+import sys
+import yaml
+from truenas_api_client import Client
+
+action, app, path = sys.argv[1:4]
+with Client() as c:
+    if action == "state":
+        print(c.call("app.query", [["name", "=", app]], {"select": ["state"]})[0]["state"])
+    elif action == "config-matches":
+        with open(path) as f:
+            wanted = yaml.safe_load(f)
+        sys.exit(0 if c.call("app.config", app) == wanted else 1)
+    elif action == "update":
+        with open(path) as f:
+            document = f.read()
+        # Pulling a new image can outlast the client's default 60 s timeout.
+        c.call("app.update", app, {"custom_compose_config_string": document}, job=True, timeout=900)
+    elif action == "start":
+        c.call("app.start", app, job=True, timeout=900)
+PY
+}
+
+state=$(api state)
 app_ctr=$(container app)
 current=$( [ -n "$app_ctr" ] && docker inspect -f '{{.Config.Image}}' "$app_ctr" || echo "none")
-log "app:     $app (project $project)"
+log "app:     $app (project $project, $state)"
 log "running: $current"
 log "target:  $image"
 
-if [ -n "$app_ctr" ] && runs_target "$app_ctr" && [ "$(docker inspect -f '{{.State.Health.Status}}' "$app_ctr")" = healthy ]; then
-  log "already running the target image and healthy; nothing to do"
+if api config-matches; then config_changed=false; else config_changed=true; fi
+if ! $config_changed && [ -n "$app_ctr" ] && runs_target "$app_ctr" \
+  && [ "$(docker inspect -f '{{.State.Health.Status}}' "$app_ctr")" = healthy ]; then
+  log "already running the target image and configuration, healthy; nothing to do"
   exit 0
 fi
+$config_changed && log "compose configuration differs from the deployed one"
 
-# Pre-deploy dump, so a bad migration can be undone (docs/backups.md).
+# Pre-deploy dump, so a bad migration can be undone (docs/backups.md). If the
+# app was deliberately stopped (e.g. to re-own its files), there is nothing to
+# dump from: take one before stopping it.
 backup_ctr=$(container backup)
-[ -n "$backup_ctr" ] || fail "backup container not running; refusing to deploy without a pre-deploy dump"
-log "taking pre-deploy dump"
-docker exec "$backup_ctr" bash /tmp/backup.sh manual | sed 's/^/[nas]   /'
+if [ -n "$backup_ctr" ]; then
+  log "taking pre-deploy dump"
+  docker exec "$backup_ctr" bash /tmp/backup.sh manual | sed 's/^/[nas]   /'
+elif [ "$state" = STOPPED ]; then
+  log "WARNING: app is stopped, so no pre-deploy dump is taken"
+else
+  fail "backup container not running ($state); refusing to deploy without a pre-deploy dump"
+fi
 
 # The Custom App stores the whole compose document; replace it and let TrueNAS
-# recreate whatever changed. Uses the middleware's Python client directly (what
-# midclt wraps): passing the ~11 KB document as a midclt argument made midclt
-# echo it endlessly and get killed before the job was even submitted.
+# recreate whatever changed.
 log "updating TrueNAS app $app"
-python3 - "$app" "$compose" <<'PY'
-import sys
-from truenas_api_client import Client
+api update
+if [ "$(api state)" = STOPPED ]; then
+  log "starting $app"
+  api start
+fi
 
-app, path = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    compose = f.read()
-with Client() as c:
-    # job=True waits for the update job and raises if it fails; pulling a new
-    # image can take longer than the client's default call timeout.
-    c.call("app.update", app, {"custom_compose_config_string": compose}, job=True, timeout=900)
-PY
 
 log "waiting for the app to run $image and report healthy"
 for _ in $(seq 1 60); do

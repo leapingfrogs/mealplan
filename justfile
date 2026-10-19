@@ -108,12 +108,15 @@ truenas-yaml version:
 backup-now:
     #!/usr/bin/env bash
     set -euo pipefail
-    nas="${MEALPLAN_SSH:?set MEALPLAN_SSH, e.g. root@truenas}"
+    nas="${MEALPLAN_SSH:?set MEALPLAN_SSH in .env.deploy, e.g. truenas_admin@truenas-scale}"
     project="${MEALPLAN_PROJECT:-ix-mealplan}"
-    ssh "$nas" "set -e
+    [[ $project =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "invalid MEALPLAN_PROJECT: $project" >&2; exit 2; }
+    # Docker on the NAS needs root, so this runs under sudo (one password prompt).
+    echo "==> manual dump on $nas (sudo will ask for your password)"
+    ssh -t "$nas" "sudo bash -c '
       c=\$(docker ps -q --filter label=com.docker.compose.project=$project --filter label=com.docker.compose.service=backup)
-      [ -n \"\$c\" ] || { echo 'backup container not running in project $project' >&2; exit 1; }
-      docker exec \$c bash /tmp/backup.sh manual"
+      [ -n \"\$c\" ] || { echo \"backup container not running in project $project\" >&2; exit 1; }
+      docker exec \"\$c\" bash /tmp/backup.sh manual'"
 
 # Show outdated Hex and npm dependencies
 outdated:

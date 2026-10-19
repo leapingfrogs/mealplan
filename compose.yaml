@@ -6,9 +6,9 @@
 #   MEALPLAN_VERSION  image tag to run, e.g. v0.1.0
 #   MEALPLAN_ROOT     app directory on the NAS dataset, laid out as:
 #                       .env                  app settings (see .env.example), mode 600
-#                       secrets/db_password   database password, owned 10001:999, mode 440
-#                       postgres/             database files, owned 999:999
-#                       backups/              pg_dump output, owned 999:999
+#                       secrets/db_password   database password, owned 10001:10999, mode 440
+#                       postgres/             database files, owned 10999:10999
+#                       backups/              pg_dump output, owned 10999:10999
 #   NPM_NETWORK       existing Docker network shared with Nginx Proxy Manager
 #
 # The app publishes no host ports: NPM reaches it over NPM_NETWORK, and the
@@ -75,9 +75,11 @@ services:
   db:
     image: postgres:18.6-trixie@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
     restart: unless-stopped
-    # Run as the image's postgres user from the start, so the entrypoint needs
-    # no root privileges (the data directory must be owned by 999:999).
-    user: "999:999"
+    # Runs as an unprivileged uid/gid from the start, so the entrypoint needs no
+    # root privileges (the image supports arbitrary ids). Not the image's own
+    # 999, which on TrueNAS is the host's netdata user and docker group. The
+    # data directory must be owned by 10999:10999.
+    user: "10999:10999"
     environment:
       POSTGRES_USER: mealplan
       POSTGRES_DB: mealplan
@@ -116,7 +118,7 @@ services:
   backup:
     image: postgres:18.6-trixie@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
     restart: unless-stopped
-    user: "999:999"
+    user: "10999:10999"
     environment:
       PGHOST: db
       PGUSER: mealplan
@@ -178,7 +180,7 @@ services:
           else
             prune "/backups/$$kind" "$$KEEP_MANUAL"
           fi
-          log "wrote $$file ($$(du -h "$$file" | cut -f1))"
+          log "wrote $$file ($$(du -h --apparent-size "$$file" | cut -f1))"
         }
 
         # Healthy while a daily dump from the last 26 hours exists.
