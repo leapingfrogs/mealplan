@@ -1,0 +1,22 @@
+# Sobelow security scan: report and fail on medium confidence and above.
+#
+# Reviewed false positives are fingerprinted in .sobelow-skips (regenerate with
+# `mix sobelow --config --mark-skip-all` only after reviewing new findings):
+#   * Config.CSP (:browser) - the CSP is set per request with a nonce by
+#     MealplanWeb.Plugs.ContentSecurityPolicy, which Sobelow can't see.
+#   * Config.CSP (:dev_tools) - dev-only LiveDashboard/mailbox, no CSP by design.
+#   * Config.HTTPS - TLS terminates at Nginx Proxy Manager; HTTPS redirect and
+#     HSTS are enforced by Plug.SSL in MealplanWeb.Endpoint (config :force_ssl).
+[
+  verbose: false,
+  private: false,
+  skip: true,
+  router: "",
+  exit: "medium",
+  format: "txt",
+  out: "",
+  threshold: "medium",
+  ignore: [],
+  ignore_files: [],
+  version: false
+]

@@ -1,0 +1,3 @@
+Config.CSP: Missing Content-Security-Policy,lib/mealplan_web/router.ex:14,18C4578
+Config.CSP: Missing Content-Security-Policy,lib/mealplan_web/router.ex:30,79E03DE
+Config.HTTPS: HTTPS Not Enabled,config/prod.exs:0,2B5C077
