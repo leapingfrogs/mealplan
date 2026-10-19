@@ -9,7 +9,7 @@ defmodule Mealplan.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"Mealplan", "contact@example.com"})
+      |> from(Mailer.from())
       |> subject(subject)
       |> text_body(body)
 

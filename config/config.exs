@@ -48,6 +48,10 @@ config :phoenix_live_view,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :mealplan, Mealplan.Mailer, adapter: Swoosh.Adapters.Local
+config :mealplan, :mail_from, {"Mealplan", "mealplan@localhost"}
+
+# Production uses SMTP, which needs no HTTP API client.
+config :swoosh, :api_client, false
 
 # Configure esbuild (the version is required)
 config :esbuild,
