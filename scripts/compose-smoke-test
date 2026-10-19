@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Boots compose.yaml + compose.test.yaml against a throwaway MEALPLAN_ROOT and
+# proxy network, waits for both services to be healthy, probes the app through
+# a pretend proxy, then tears everything down. Needs mealplan:local
+# (`just docker-build`), or the image named by MEALPLAN_TEST_IMAGE.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+port=${MEALPLAN_TEST_PORT:-4100}
+root=$(mktemp -d)
+export MEALPLAN_ROOT=$root MEALPLAN_VERSION=local NPM_NETWORK=mealplan-smoke-proxy MEALPLAN_TEST_PORT=$port
+compose=(docker compose -p mealplan-smoke -f compose.yaml -f compose.test.yaml)
+
+# Runs on exit; the probe results stay the exit status even if cleanup fails.
+cleanup() {
+  local status=$?
+  "${compose[@]}" down --volumes --timeout 30 >/dev/null 2>&1 || true
+  docker network rm "$NPM_NETWORK" >/dev/null 2>&1 || true
+  # Postgres files belong to uid 999, so removing them needs the same privilege
+  # as the chown below.
+  if docker version 2>/dev/null | grep -qi podman; then
+    podman unshare rm -rf "$root" || echo "warning: could not remove $root" >&2
+  else
+    sudo rm -rf "$root" || echo "warning: could not remove $root" >&2
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
+# Ownership as on the NAS. Rootless Podman maps container uids into the user
+# namespace, so chown through `podman unshare`; rootful Docker needs root.
+own() { if docker version 2>/dev/null | grep -qi podman; then podman unshare chown "$@"; else sudo chown "$@"; fi; }
+
+mkdir -p "$root/secrets" "$root/postgres"
+head -c 24 /dev/urandom | base64 > "$root/secrets/db_password"
+chmod 440 "$root/secrets/db_password"
+own 10001:999 "$root/secrets/db_password"
+own 999:999 "$root/postgres"
+
+# The published port is reached via the bridge gateway, so trust private ranges.
+cat > "$root/.env" <<ENV
+SECRET_KEY_BASE=$(head -c 48 /dev/urandom | base64 | tr -d '\n')
+PHX_HOST=mealplan.test
+TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7
+RELEASE_COOKIE=smoke-test
+SMTP_HOST=smtp.example.com
+SMTP_USERNAME=x
+SMTP_PASSWORD=y
+SMTP_FROM=mealplan@example.com
+ENV
+chmod 600 "$root/.env"
+
+docker network create "$NPM_NETWORK" >/dev/null
+"${compose[@]}" up --detach --wait --wait-timeout 180
+
+probe() { curl -s -o /dev/null -w "%{http_code}" -H "Host: mealplan.test" "$@"; }
+fail=0
+check() { # name expected actual
+  if [ "$2" = "$3" ]; then echo "ok   $1 ($3)"; else echo "FAIL $1: expected $2, got $3"; fail=1; fi
+}
+check "health/ready"            200 "$(curl -s -o /dev/null -w "%{http_code}" -H "Host: localhost" "http://127.0.0.1:$port/health/ready")"
+check "proxied https log-in"    200 "$(probe -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port/users/log-in")"
+check "proxied http redirects"  301 "$(probe "http://127.0.0.1:$port/users/log-in")"
+check "app container healthy"   healthy "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q app)")"
+check "db publishes no host ports" 0 "$(docker inspect -f '{{len .HostConfig.PortBindings}}' "$("${compose[@]}" ps -q db)")"
+exit $fail
