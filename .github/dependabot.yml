@@ -1,6 +1,5 @@
 # Commit prefixes follow Conventional Commits so Dependabot PRs pass commitlint
 # and land in release-please's changelog as build/ci changes.
-# Docker base images are added alongside the Dockerfile.
 version: 2
 
 updates:
@@ -30,6 +29,20 @@ updates:
       include: scope
     groups:
       npm-tooling:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    # Skip releases younger than two weeks (supply-chain safety margin).
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      docker-images:
         patterns: ["*"]
 
   - package-ecosystem: github-actions
