@@ -78,11 +78,12 @@ defmodule Mealplan.Release do
   # is not running yet; the endpoint only listens when PHX_SERVER is set.
   defp start_app do
     {:ok, _} = Application.ensure_all_started(@app)
+    :ok
   end
 
   defp load_app do
     # Many platforms require SSL when connecting to the database
-    Application.ensure_all_started(:ssl)
-    Application.ensure_loaded(@app)
+    {:ok, _} = Application.ensure_all_started(:ssl)
+    :ok = Application.ensure_loaded(@app)
   end
 end

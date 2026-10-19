@@ -49,10 +49,10 @@ defmodule MealplanWeb.UserAuth do
   """
   def log_out_user(conn) do
     user_token = get_session(conn, :user_token)
-    user_token && Accounts.delete_user_session_token(user_token)
+    _ = user_token && Accounts.delete_user_session_token(user_token)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
-      MealplanWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+      :ok = MealplanWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
     end
 
     conn

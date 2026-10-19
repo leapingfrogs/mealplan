@@ -118,12 +118,11 @@ defmodule MealplanWeb.UserLive.Login do
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
     case LoginThrottle.magic_link(socket.assigns.client_ip, email) do
       :ok ->
-        if user = Accounts.get_user_by_email(email) do
-          Accounts.deliver_login_instructions(
-            user,
-            &url(~p"/users/log-in/#{&1}")
-          )
-        end
+        # Fire and forget: the response is the same whether or not the email exists.
+        _ =
+          if user = Accounts.get_user_by_email(email) do
+            Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}"))
+          end
 
         info =
           "If your email is in our system, you will receive instructions for logging in shortly."

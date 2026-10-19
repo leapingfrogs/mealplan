@@ -12,6 +12,13 @@ defmodule Mealplan.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
+      dialyzer: [
+        # Kept in priv/plts (gitignored) so CI can cache them between runs.
+        plt_local_path: "priv/plts",
+        plt_core_path: "priv/plts",
+        plt_add_apps: [:mix],
+        flags: [:unmatched_returns, :extra_return, :missing_return, :error_handling]
+      ],
       releases: [
         mealplan: [include_executables_for: [:unix]]
       ]
@@ -82,7 +89,8 @@ defmodule Mealplan.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:styler, "~> 1.12", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 
