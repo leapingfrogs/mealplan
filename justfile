@@ -68,8 +68,12 @@ docker-lint:
 
 # Build the production image locally as mealplan:local
 docker-build:
-    docker build $(docker --version | grep -qi podman && echo --format docker) -t mealplan:local \
+    docker build $(docker version 2>/dev/null | grep -qi podman && echo --format docker) -t mealplan:local \
       --build-arg VERSION=local --build-arg REVISION=$(jj log -r @- --no-graph -T commit_id) .
+
+# Boot the compose stack from mealplan:local with a throwaway root and probe it
+compose-smoke:
+    {{ run }} scripts/compose-smoke-test
 
 # Scan mealplan:local for HIGH/CRITICAL vulnerabilities (as CI does)
 docker-scan:

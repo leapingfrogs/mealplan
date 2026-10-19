@@ -44,6 +44,25 @@ defmodule Mealplan.RepoTest do
       assert config[:socket_options] == [:inet6]
     end
 
+    @tag :tmp_dir
+    test "reads DATABASE_PASSWORD_FILE, stripping only trailing newlines", %{tmp_dir: dir} do
+      path = Path.join(dir, "db_password")
+      File.write!(path, "s3cret pass \n\n")
+
+      assert Repo.config_from_env(%{"DATABASE_PASSWORD_FILE" => path})[:password] ==
+               "s3cret pass "
+    end
+
+    test "DATABASE_PASSWORD wins over DATABASE_PASSWORD_FILE" do
+      config =
+        Repo.config_from_env(%{
+          "DATABASE_PASSWORD" => "direct",
+          "DATABASE_PASSWORD_FILE" => "/nonexistent"
+        })
+
+      assert config[:password] == "direct"
+    end
+
     test "requires a password without DATABASE_URL" do
       assert_raise RuntimeError, ~r/DATABASE_PASSWORD/, fn -> Repo.config_from_env(%{}) end
     end

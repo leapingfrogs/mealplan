@@ -1,0 +1,102 @@
+# Production stack for the TrueNAS Custom App (Docker Compose).
+#
+# Required variables (substituted by `just deploy`; nothing has a default so
+# nothing is guessed):
+#   MEALPLAN_VERSION  image tag to run, e.g. v0.1.0
+#   MEALPLAN_ROOT     app directory on the NAS dataset, laid out as:
+#                       .env                  app settings (see .env.example), mode 600
+#                       secrets/db_password   database password, owned 10001:999, mode 440
+#                       postgres/             database files, owned 999:999
+#   NPM_NETWORK       existing Docker network shared with Nginx Proxy Manager
+#
+# The app publishes no host ports: NPM reaches it over NPM_NETWORK, and the
+# database is only on the internal network. TRUSTED_PROXIES in .env must cover
+# NPM's address on NPM_NETWORK.
+
+name: mealplan
+
+services:
+  app:
+    image: ghcr.io/leapingfrogs/mealplan:${MEALPLAN_VERSION:?set MEALPLAN_VERSION}
+    restart: unless-stopped
+    env_file: ${MEALPLAN_ROOT:?set MEALPLAN_ROOT}/.env
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - proxy
+    # The image runs as uid 10001 and only writes to /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Healthcheck comes from the image (GET /health/live).
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  db:
+    image: postgres:18.6-trixie@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    restart: unless-stopped
+    # Run as the image's postgres user from the start, so the entrypoint needs
+    # no root privileges (the data directory must be owned by 999:999).
+    user: "999:999"
+    environment:
+      POSTGRES_USER: mealplan
+      POSTGRES_DB: mealplan
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - ${MEALPLAN_ROOT:?set MEALPLAN_ROOT}/postgres:/var/lib/postgresql
+    networks:
+      - internal
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /var/run/postgresql:rw,noexec,nosuid,size=1m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mealplan", "-d", "mealplan"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+    logging: *logging
+
+secrets:
+  db_password:
+    file: ${MEALPLAN_ROOT:?set MEALPLAN_ROOT}/secrets/db_password
+
+networks:
+  # No route outside the host: only app and db talk here.
+  internal:
+    internal: true
+  proxy:
+    name: ${NPM_NETWORK:?set NPM_NETWORK}
+    external: true
