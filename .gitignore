@@ -1,0 +1,10 @@
+# devenv / direnv
+.devenv/
+.devenv.flake.nix
+.direnv/
+.pre-commit-config.yaml
+
+# secrets
+.env
+.env.*
+!.env.example
