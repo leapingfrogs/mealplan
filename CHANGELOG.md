@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1](https://github.com/leapingfrogs/mealplan/compare/v0.1.0...v0.1.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* name TRUSTED_PROXIES in the startup error for an invalid value ([#12](https://github.com/leapingfrogs/mealplan/issues/12)) ([f915283](https://github.com/leapingfrogs/mealplan/commit/f9152836d9cea4c94f9c17a204ac1701f50d28a7))
+
+
+### Build and Dependencies
+
+* add just deploy and just rollback for the TrueNAS app ([#14](https://github.com/leapingfrogs/mealplan/issues/14)) ([8575be7](https://github.com/leapingfrogs/mealplan/commit/8575be72942b4abbd0ab716a6e5cc21fb49cbe45))
+* render compose.yaml for the TrueNAS Custom App ([#11](https://github.com/leapingfrogs/mealplan/issues/11)) ([804f9cc](https://github.com/leapingfrogs/mealplan/commit/804f9ccbf91516da3edeceed3ae4d94a4c5ac9b3))
+
 ## 0.1.0 (2026-10-19)
 
 
