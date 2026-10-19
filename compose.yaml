@@ -7,6 +7,7 @@
 #                       .env                  app settings (see .env.example), mode 600
 #                       secrets/db_password   database password, owned 10001:999, mode 440
 #                       postgres/             database files, owned 999:999
+#                       backups/              pg_dump output, owned 999:999
 #   NPM_NETWORK       existing Docker network shared with Nginx Proxy Manager
 #
 # The app publishes no host ports: NPM reaches it over NPM_NETWORK, and the
@@ -87,6 +88,122 @@ services:
         limits:
           cpus: "2"
           memory: 1g
+    logging: *logging
+
+  # Nightly pg_dump (custom format) to MEALPLAN_ROOT/backups, with retention.
+  # On demand: `bash /tmp/backup.sh manual` in this container (`just backup-now`).
+  # Restore procedure: docs/backups.md.
+  backup:
+    image: postgres:18.6-trixie@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    restart: unless-stopped
+    user: "999:999"
+    environment:
+      PGHOST: db
+      PGUSER: mealplan
+      PGDATABASE: mealplan
+      BACKUP_AT: "03:00" # UTC
+      KEEP_DAILY: "7"
+      KEEP_WEEKLY: "4"
+      KEEP_MONTHLY: "6"
+      KEEP_MANUAL: "10"
+    secrets:
+      - db_password
+    volumes:
+      - ${MEALPLAN_ROOT:?set MEALPLAN_ROOT}/backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Compose interpolates $, so the script's own variables are written $$.
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        cat > /tmp/backup.sh <<'SCRIPT'
+        set -euo pipefail
+        export PGPASSWORD="$$(cat /run/secrets/db_password)"
+        log() { echo "$$(date -u +%FT%TZ) backup: $$*"; }
+
+        # Keep the newest $$2 dumps in directory $$1.
+        prune() {
+          { ls -1t "$$1"/*.dump 2>/dev/null || true; } | tail -n +$$(($$2 + 1)) | xargs -r rm -f --
+        }
+
+        # Dump to a .partial file, check the archive is readable, then rename,
+        # so a failed or interrupted dump never looks like a good one.
+        dump() {
+          local kind=$$1 file
+          mkdir -p "/backups/$$kind"
+          file="/backups/$$kind/mealplan-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+          if ! pg_dump --format=custom --file="$$file.partial"; then
+            rm -f "$$file.partial"; log "FAILED: pg_dump"; return 1
+          fi
+          if ! pg_restore --list "$$file.partial" > /dev/null; then
+            rm -f "$$file.partial"; log "FAILED: unreadable archive"; return 1
+          fi
+          mv "$$file.partial" "$$file"
+          if [ "$$kind" = daily ]; then
+            if [ "$$(date -u +%u)" = 7 ]; then mkdir -p /backups/weekly; ln -f "$$file" /backups/weekly/; fi
+            if [ "$$(date -u +%d)" = 01 ]; then mkdir -p /backups/monthly; ln -f "$$file" /backups/monthly/; fi
+            prune /backups/daily "$$KEEP_DAILY"
+            prune /backups/weekly "$$KEEP_WEEKLY"
+            prune /backups/monthly "$$KEEP_MONTHLY"
+          else
+            prune "/backups/$$kind" "$$KEEP_MANUAL"
+          fi
+          log "wrote $$file ($$(du -h "$$file" | cut -f1))"
+        }
+
+        # Healthy while a daily dump from the last 26 hours exists.
+        health() {
+          find /backups/daily -name '*.dump' -mmin -$$((26 * 60)) 2>/dev/null | grep -q .
+        }
+
+        loop() {
+          trap 'exit 0' TERM INT
+          if ! find /backups/daily -name '*.dump' -mmin -1440 2>/dev/null | grep -q .; then
+            dump daily || true
+          fi
+          while true; do
+            local now next
+            now=$$(date -u +%s)
+            next=$$(date -u -d "today $$BACKUP_AT" +%s)
+            if [ "$$next" -le "$$now" ]; then next=$$(date -u -d "tomorrow $$BACKUP_AT" +%s); fi
+            log "next daily backup at $$(date -u -d "@$$next" +%FT%TZ)"
+            sleep $$((next - now)) & wait $$!
+            dump daily || true
+          done
+        }
+
+        case "$${1:-loop}" in
+          loop) loop ;;
+          daily | manual) dump "$$1" ;;
+          health) health ;;
+          *) echo "usage: backup.sh [loop|daily|manual|health]" >&2; exit 2 ;;
+        esac
+        SCRIPT
+        exec bash /tmp/backup.sh loop
+    healthcheck:
+      test: ["CMD", "bash", "/tmp/backup.sh", "health"]
+      # Cheap (one find); a short interval also covers engines that ignore
+      # start_interval.
+      interval: 1m
+      timeout: 10s
+      retries: 2
+      start_period: 2m
+      start_interval: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256m
     logging: *logging
 
 secrets:
