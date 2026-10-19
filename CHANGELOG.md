@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/leapingfrogs/mealplan/compare/v0.1.1...v0.1.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* run the database and backups as uid 10999, and deploy config-only changes ([#16](https://github.com/leapingfrogs/mealplan/issues/16)) ([0488f70](https://github.com/leapingfrogs/mealplan/commit/0488f70190e90d7a56c4dcbc28eadb9e588746bb))
+* update the TrueNAS app through the API client instead of midclt ([#15](https://github.com/leapingfrogs/mealplan/issues/15)) ([161bd7d](https://github.com/leapingfrogs/mealplan/commit/161bd7dd186acaabc4c5a374cf5ac5ec37c90761))
+
 ## [0.1.1](https://github.com/leapingfrogs/mealplan/compare/v0.1.0...v0.1.1) (2026-10-19)
 
 
