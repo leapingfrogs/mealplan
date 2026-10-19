@@ -208,13 +208,13 @@ Expected:
 ## 9. Nginx Proxy Manager proxy host
 
 Prerequisites: ports 80 and 443 forwarded to NPM, and the hostname resolving
-to your public IP (here via the `*.subvault.co.uk` wildcard).
+to your public IP (an A record, or a wildcard such as `*.example.com`).
 
 **Hosts → Proxy Hosts → Add Proxy Host.** Details tab:
 
 | Field | Value |
 |---|---|
-| Domain Names | `mealplan.subvault.co.uk` (must equal `PHX_HOST`) |
+| Domain Names | `mealplan.example.com`, your `PHX_HOST` (must match exactly) |
 | Scheme / Forward Hostname / Port | `http` / `mealplan` / `4000` |
 | Cache Assets | off (Phoenix sets cache headers on digested assets) |
 | Block Common Exploits | on |
@@ -230,7 +230,7 @@ SSL** on, **HTTP/2** on, **HSTS** off (the app sends its own
 
 If the router doesn't do hairpin NAT, LAN devices can't reach the public IP.
 Add a local DNS override (router, Pi-hole/AdGuard, or Tailscale DNS for tailnet
-devices) pointing `mealplan.subvault.co.uk` at the NAS's LAN address. Use the
+devices) pointing your `PHX_HOST` at the NAS's LAN address. Use the
 hostname, not the IP: the app only accepts LiveView connections from pages
 served at `https://PHX_HOST`.
 
@@ -269,14 +269,15 @@ Running it again for the version already deployed is a no-op.
 
 ### One-time setup
 
-1. **SSH key login for the admin user.** Credentials → Users →
-   `truenas_admin` → Edit: paste your public key into **SSH Public Key**, keep
+1. **SSH key login for the admin user.** Credentials → Users → your admin
+   user (TrueNAS's default is `truenas_admin`) → Edit: paste your public key
+   into **SSH Public Key**, keep
    **Allowed sudo commands: ALL** (password required, not "no password").
 2. **SSH service.** System → Services → SSH: enable and start automatically.
    In its settings, leave password authentication off.
 3. **Workstation settings.** `cp .env.deploy.example .env.deploy` and set
-   `MEALPLAN_SSH=truenas_admin@truenas-scale` (the tailnet name). Check with
-   `ssh truenas_admin@truenas-scale true`.
+   `MEALPLAN_SSH=<admin>@<nas>` (a tailnet name works well). Check with
+   `ssh <admin>@<nas> true`.
 
 `gh` must be logged in on the workstation (`gh auth status`) for the
 provenance check.
@@ -309,7 +310,7 @@ user and `docker` group. To move them (NAS shell as root for the `chown`s):
 2. **Apps → mealplan → Stop.**
 3. Re-own the files:
    ```sh
-   root=/mnt/storage/Apps/mealplan
+   root=/mnt/<pool>/apps/mealplan
    chown -R 10999:10999 "$root/postgres" "$root/backups"
    chown 10001:10999 "$root/secrets/db_password"
    ```

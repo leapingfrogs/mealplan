@@ -1,8 +1,7 @@
 # Mealplan
 
 Meal planning and recipe management for the family, built with Elixir and
-Phoenix LiveView. Self-hosted on a TrueNAS appliance at
-`https://mealplan.subvault.co.uk`; accounts are invite-only.
+Phoenix LiveView. Self-hosted on a TrueNAS appliance; accounts are invite-only.
 
 **Status:** Iteration 0, the foundations. Invite-only magic-link login, admin
 error dashboard, hardened production stack with backups, CI, releases and
@@ -90,4 +89,4 @@ First admin in production (NAS shell as root):
 docker exec ix-mealplan-app-1 /app/bin/mealplan eval 'Mealplan.Release.invite_user("you@example.com", admin: true)'
 ```
 
-Health: `https://mealplan.subvault.co.uk/health/live` and `/health/ready`.
+Health: `https://<PHX_HOST>/health/live` and `/health/ready`.

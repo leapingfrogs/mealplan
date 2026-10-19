@@ -5,7 +5,7 @@
 # script's $$-escaped variables, which Docker Compose still unescapes.
 #
 #   scripts/render-truenas-compose VERSION ROOT NPM_NETWORK > mealplan.yaml
-#   scripts/render-truenas-compose v0.1.0 /mnt/storage/Apps/mealplan ix-nginx-proxy-manager_default
+#   scripts/render-truenas-compose v0.1.0 /mnt/tank/apps/mealplan ix-nginx-proxy-manager_default
 #
 # VERSION may carry a digest (v0.1.0@sha256:<64 hex>) to pin the exact image;
 # `just deploy` always does.

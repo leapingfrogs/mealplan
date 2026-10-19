@@ -73,7 +73,7 @@ if $dry_run; then
   step "dry run: rendered compose for $app ($(wc -l < "$compose") lines); not deploying"
   exit 0
 fi
-: "${MEALPLAN_SSH:?set MEALPLAN_SSH in .env.deploy, e.g. truenas_admin@truenas-scale}"
+: "${MEALPLAN_SSH:?set MEALPLAN_SSH in .env.deploy, e.g. admin@nas}"
 
 if $rollback; then
   cat >&2 <<EOF

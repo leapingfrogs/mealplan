@@ -35,18 +35,18 @@ defmodule MealplanWeb.TrustedProxyTest do
 
   describe "from_env!/2" do
     test "reads TRUSTED_PROXIES" do
-      assert TrustedProxy.from_env!("TRUSTED_PROXIES", %{"TRUSTED_PROXIES" => "172.16.8.0/24"}) ==
-               [{{172, 16, 8, 0}, 24}]
+      assert TrustedProxy.from_env!("TRUSTED_PROXIES", %{"TRUSTED_PROXIES" => "172.16.5.0/24"}) ==
+               [{{172, 16, 5, 0}, 24}]
 
       assert TrustedProxy.from_env!("TRUSTED_PROXIES", %{}) == []
     end
 
     test "names the variable when the value is invalid" do
       assert_raise ArgumentError,
-                   ~r/^TRUSTED_PROXIES in the environment is invalid: .*"=172.16.8.0\/24"/,
+                   ~r/^TRUSTED_PROXIES in the environment is invalid: .*"=172.16.5.0\/24"/,
                    fn ->
                      TrustedProxy.from_env!("TRUSTED_PROXIES", %{
-                       "TRUSTED_PROXIES" => "=172.16.8.0/24"
+                       "TRUSTED_PROXIES" => "=172.16.5.0/24"
                      })
                    end
     end
