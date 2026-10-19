@@ -1,8 +1,9 @@
 defmodule Mealplan.Accounts.UserNotifier do
+  @moduledoc false
   import Swoosh.Email
 
-  alias Mealplan.Mailer
   alias Mealplan.Accounts.User
+  alias Mealplan.Mailer
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do

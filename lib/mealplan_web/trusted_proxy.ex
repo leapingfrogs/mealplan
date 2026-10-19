@@ -141,7 +141,7 @@ defmodule MealplanWeb.TrustedProxy do
   end
 
   defp parse_ip(string) do
-    case :inet.parse_strict_address(string |> String.trim() |> String.to_charlist()) do
+    case string |> String.trim() |> String.to_charlist() |> :inet.parse_strict_address() do
       {:ok, ip} -> normalize(ip)
       {:error, _} -> nil
     end

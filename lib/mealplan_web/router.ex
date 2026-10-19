@@ -1,6 +1,5 @@
 defmodule MealplanWeb.Router do
   use MealplanWeb, :router
-
   use ErrorTracker.Web, :router
 
   import MealplanWeb.UserAuth

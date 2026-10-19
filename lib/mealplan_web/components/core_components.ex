@@ -29,6 +29,7 @@ defmodule MealplanWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: MealplanWeb.Gettext
 
+  alias Phoenix.HTML.FormField
   alias Phoenix.LiveView.JS
 
   @doc """
@@ -173,7 +174,7 @@ defmodule MealplanWeb.CoreComponents do
     values: ~w(checkbox color date datetime-local email file month number password
                search select tel text textarea time url week hidden)
 
-  attr :field, Phoenix.HTML.FormField,
+  attr :field, FormField,
     doc: "a form field struct retrieved from the form, for example: @form[:email]"
 
   attr :errors, :list, default: []
@@ -188,7 +189,7 @@ defmodule MealplanWeb.CoreComponents do
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
                 multiple pattern placeholder readonly required rows size step)
 
-  def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+  def input(%{field: %FormField{} = field} = assigns) do
     errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
 
     assigns
@@ -398,6 +399,8 @@ defmodule MealplanWeb.CoreComponents do
     """
   end
 
+  ## JS Commands
+
   @doc """
   Renders a data list.
 
@@ -451,8 +454,6 @@ defmodule MealplanWeb.CoreComponents do
     <span class={[@name, @class]} />
     """
   end
-
-  ## JS Commands
 
   def show(js \\ %JS{}, selector) do
     JS.show(js,

@@ -6,8 +6,8 @@ defmodule MealplanWeb.LoginThrottle do
   """
   alias Mealplan.RateLimit
 
-  @minute :timer.minutes(1)
-  @quarter_hour :timer.minutes(15)
+  @minute to_timeout(minute: 1)
+  @quarter_hour to_timeout(minute: 15)
 
   @doc "Requesting a magic link email: 5/min per IP, 3 per 15 min per email."
   @spec magic_link(:inet.ip_address() | nil, String.t()) :: :ok | {:error, :rate_limited}

@@ -19,15 +19,16 @@ defmodule MealplanWeb.ConnCase do
 
   using do
     quote do
-      # The default endpoint for testing
-      @endpoint MealplanWeb.Endpoint
-
       use MealplanWeb, :verified_routes
+
+      import MealplanWeb.ConnCase
+      import Phoenix.ConnTest
 
       # Import conveniences for testing with connections
       import Plug.Conn
-      import Phoenix.ConnTest
-      import MealplanWeb.ConnCase
+
+      # The default endpoint for testing
+      @endpoint MealplanWeb.Endpoint
     end
   end
 
@@ -44,8 +45,7 @@ defmodule MealplanWeb.ConnCase do
     n = System.unique_integer([:positive])
     ip = {10, rem(div(n, 65_536), 256), rem(div(n, 256), 256), rem(n, 256)}
 
-    %{conn | remote_ip: ip}
-    |> Plug.Test.put_peer_data(%{address: ip, port: 40_000, ssl_cert: nil})
+    Plug.Test.put_peer_data(%{conn | remote_ip: ip}, %{address: ip, port: 40_000, ssl_cert: nil})
   end
 
   @doc """
@@ -63,7 +63,7 @@ defmodule MealplanWeb.ConnCase do
     opts =
       context
       |> Map.take([:token_authenticated_at])
-      |> Enum.into([])
+      |> Enum.to_list()
 
     %{conn: log_in_user(conn, user, opts), user: user, scope: scope}
   end

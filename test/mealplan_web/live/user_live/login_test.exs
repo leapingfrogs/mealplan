@@ -1,8 +1,8 @@
 defmodule MealplanWeb.UserLive.LoginTest do
   use MealplanWeb.ConnCase, async: true
 
-  import Phoenix.LiveViewTest
   import Mealplan.AccountsFixtures
+  import Phoenix.LiveViewTest
 
   describe "login page" do
     test "renders login page", %{conn: conn} do
@@ -21,7 +21,8 @@ defmodule MealplanWeb.UserLive.LoginTest do
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 
       {:ok, _lv, html} =
-        form(lv, "#login_form_magic", user: %{email: user.email})
+        lv
+        |> form("#login_form_magic", user: %{email: user.email})
         |> render_submit()
         |> follow_redirect(conn, ~p"/users/log-in")
 
@@ -35,7 +36,8 @@ defmodule MealplanWeb.UserLive.LoginTest do
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 
       {:ok, _lv, html} =
-        form(lv, "#login_form_magic", user: %{email: "idonotexist@example.com"})
+        lv
+        |> form("#login_form_magic", user: %{email: "idonotexist@example.com"})
         |> render_submit()
         |> follow_redirect(conn, ~p"/users/log-in")
 
@@ -45,7 +47,7 @@ defmodule MealplanWeb.UserLive.LoginTest do
 
   describe "user login - password" do
     test "redirects if user logs in with valid credentials", %{conn: conn} do
-      user = user_fixture() |> set_password()
+      user = set_password(user_fixture())
 
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 

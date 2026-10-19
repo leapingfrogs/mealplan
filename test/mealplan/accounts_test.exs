@@ -1,10 +1,11 @@
 defmodule Mealplan.AccountsTest do
   use Mealplan.DataCase
 
-  alias Mealplan.Accounts
-
   import Mealplan.AccountsFixtures
-  alias Mealplan.Accounts.{User, UserToken}
+
+  alias Mealplan.Accounts
+  alias Mealplan.Accounts.User
+  alias Mealplan.Accounts.UserToken
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -23,12 +24,12 @@ defmodule Mealplan.AccountsTest do
     end
 
     test "does not return the user if the password is not valid" do
-      user = user_fixture() |> set_password()
+      user = set_password(user_fixture())
       refute Accounts.get_user_by_email_and_password(user.email, "invalid")
     end
 
     test "returns the user if the email and password are valid" do
-      %{id: id} = user = user_fixture() |> set_password()
+      %{id: id} = user = set_password(user_fixture())
 
       assert %User{id: ^id} =
                Accounts.get_user_by_email_and_password(user.email, valid_user_password())
@@ -92,12 +93,12 @@ defmodule Mealplan.AccountsTest do
       now = DateTime.utc_now()
 
       assert Accounts.sudo_mode?(%User{authenticated_at: DateTime.utc_now()})
-      assert Accounts.sudo_mode?(%User{authenticated_at: DateTime.add(now, -19, :minute)})
-      refute Accounts.sudo_mode?(%User{authenticated_at: DateTime.add(now, -21, :minute)})
+      assert Accounts.sudo_mode?(%User{authenticated_at: DateTime.shift(now, minute: -19)})
+      refute Accounts.sudo_mode?(%User{authenticated_at: DateTime.shift(now, minute: -21)})
 
       # minute override
       refute Accounts.sudo_mode?(
-               %User{authenticated_at: DateTime.add(now, -11, :minute)},
+               %User{authenticated_at: DateTime.shift(now, minute: -11)},
                -10
              )
 
@@ -261,7 +262,7 @@ defmodule Mealplan.AccountsTest do
       token = Accounts.generate_user_session_token(user)
       assert user_token = Repo.get_by(UserToken, token: token)
       assert user_token.context == "session"
-      assert user_token.authenticated_at != nil
+      assert user_token.authenticated_at
 
       # Creating the same token for another user should fail
       assert_raise Ecto.ConstraintError, fn ->
@@ -274,11 +275,11 @@ defmodule Mealplan.AccountsTest do
     end
 
     test "duplicates the authenticated_at of given user in new token", %{user: user} do
-      user = %{user | authenticated_at: DateTime.add(DateTime.utc_now(:second), -3600)}
+      user = %{user | authenticated_at: DateTime.shift(DateTime.utc_now(:second), hour: -1)}
       token = Accounts.generate_user_session_token(user)
       assert user_token = Repo.get_by(UserToken, token: token)
       assert user_token.authenticated_at == user.authenticated_at
-      assert DateTime.compare(user_token.inserted_at, user.authenticated_at) == :gt
+      assert DateTime.after?(user_token.inserted_at, user.authenticated_at)
     end
   end
 
@@ -292,8 +293,8 @@ defmodule Mealplan.AccountsTest do
     test "returns user by token", %{user: user, token: token} do
       assert {session_user, token_inserted_at} = Accounts.get_user_by_session_token(token)
       assert session_user.id == user.id
-      assert session_user.authenticated_at != nil
-      assert token_inserted_at != nil
+      assert session_user.authenticated_at
+      assert token_inserted_at
     end
 
     test "does not return user for invalid token" do

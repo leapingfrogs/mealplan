@@ -4,11 +4,12 @@ defmodule Mealplan.Accounts do
   """
 
   import Ecto.Query, warn: false
-  alias Mealplan.Repo
-
-  alias Mealplan.Accounts.{User, UserToken, UserNotifier}
 
   ## Database getters
+  alias Mealplan.Accounts.User
+  alias Mealplan.Accounts.UserNotifier
+  alias Mealplan.Accounts.UserToken
+  alias Mealplan.Repo
 
   @doc """
   Gets a user by email.
@@ -58,9 +59,10 @@ defmodule Mealplan.Accounts do
       ** (Ecto.NoResultsError)
 
   """
-  def get_user!(id), do: Repo.get!(User, id)
 
   ## User registration
+
+  def get_user!(id), do: Repo.get!(User, id)
 
   @doc """
   Registers a user.
@@ -111,6 +113,8 @@ defmodule Mealplan.Accounts do
     end
   end
 
+  ## Settings
+
   @doc """
   Grants or revokes administrator rights.
 
@@ -123,8 +127,6 @@ defmodule Mealplan.Accounts do
     |> Repo.update()
   end
 
-  ## Settings
-
   @doc """
   Checks whether the user is in sudo mode.
 
@@ -134,7 +136,7 @@ defmodule Mealplan.Accounts do
   def sudo_mode?(user, minutes \\ -20)
 
   def sudo_mode?(%User{authenticated_at: ts}, minutes) when is_struct(ts, DateTime) do
-    DateTime.after?(ts, DateTime.utc_now() |> DateTime.add(minutes, :minute))
+    DateTime.after?(ts, DateTime.shift(DateTime.utc_now(), minute: minutes))
   end
 
   def sudo_mode?(_user, _minutes), do: false
@@ -186,6 +188,7 @@ defmodule Mealplan.Accounts do
       %Ecto.Changeset{data: %User{}}
 
   """
+  ## Session
   def change_user_password(user, attrs \\ %{}, opts \\ []) do
     User.password_changeset(user, attrs, opts)
   end
@@ -209,8 +212,6 @@ defmodule Mealplan.Accounts do
     |> User.password_changeset(attrs)
     |> update_user_and_delete_all_tokens()
   end
-
-  ## Session
 
   @doc """
   Generates a session token.
@@ -298,6 +299,9 @@ defmodule Mealplan.Accounts do
       {:ok, %{to: ..., body: ...}}
 
   """
+
+  ## Token helper
+
   def deliver_user_update_email_instructions(%User{} = user, current_email, update_email_url_fun)
       when is_function(update_email_url_fun, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "change:#{current_email}")
@@ -323,8 +327,6 @@ defmodule Mealplan.Accounts do
     Repo.delete_all(from(UserToken, where: [token: ^token, context: "session"]))
     :ok
   end
-
-  ## Token helper
 
   defp update_user_and_delete_all_tokens(changeset) do
     Repo.transact(fn ->

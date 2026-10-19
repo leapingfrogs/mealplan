@@ -1,4 +1,5 @@
 defmodule MealplanWeb.UserLive.Confirmation do
+  @moduledoc false
   use MealplanWeb, :live_view
 
   alias Mealplan.Accounts

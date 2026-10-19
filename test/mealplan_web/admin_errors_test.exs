@@ -1,8 +1,8 @@
 defmodule MealplanWeb.AdminErrorsTest do
   use MealplanWeb.ConnCase, async: true
 
-  import Phoenix.LiveViewTest
   import Mealplan.AccountsFixtures
+  import Phoenix.LiveViewTest
 
   alias Mealplan.Accounts
   alias Mealplan.Accounts.User

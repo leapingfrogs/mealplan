@@ -1,4 +1,5 @@
 defmodule Mealplan.Mailer do
+  @moduledoc false
   use Swoosh.Mailer, otp_app: :mealplan
 
   @doc """

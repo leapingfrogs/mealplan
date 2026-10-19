@@ -12,7 +12,7 @@ defmodule Mealplan.Application do
       Mealplan.Repo,
       {DNSCluster, query: Application.get_env(:mealplan, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Mealplan.PubSub},
-      {Mealplan.RateLimit, clean_period: :timer.minutes(1)},
+      {Mealplan.RateLimit, clean_period: to_timeout(minute: 1)},
       # Start a worker by calling: Mealplan.Worker.start_link(arg)
       # {Mealplan.Worker, arg},
       # Start to serve requests, typically the last entry

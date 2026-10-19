@@ -1,9 +1,10 @@
 defmodule MealplanWeb.UserLive.SettingsTest do
   use MealplanWeb.ConnCase, async: true
 
-  alias Mealplan.Accounts
-  import Phoenix.LiveViewTest
   import Mealplan.AccountsFixtures
+  import Phoenix.LiveViewTest
+
+  alias Mealplan.Accounts
 
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do
@@ -28,7 +29,7 @@ defmodule MealplanWeb.UserLive.SettingsTest do
       {:ok, conn} =
         conn
         |> log_in_user(user_fixture(),
-          token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+          token_authenticated_at: DateTime.shift(DateTime.utc_now(:second), minute: -11)
         )
         |> live(~p"/users/settings")
         |> follow_redirect(conn, ~p"/users/log-in")

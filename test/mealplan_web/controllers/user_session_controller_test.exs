@@ -2,6 +2,7 @@ defmodule MealplanWeb.UserSessionControllerTest do
   use MealplanWeb.ConnCase, async: true
 
   import Mealplan.AccountsFixtures
+
   alias Mealplan.Accounts
 
   setup do

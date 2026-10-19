@@ -1,9 +1,10 @@
 defmodule MealplanWeb.UserLive.Settings do
+  @moduledoc false
   use MealplanWeb, :live_view
 
-  on_mount {MealplanWeb.UserAuth, :require_sudo_mode}
-
   alias Mealplan.Accounts
+
+  on_mount {MealplanWeb.UserAuth, :require_sudo_mode}
 
   @impl true
   def render(assigns) do
@@ -125,7 +126,7 @@ defmodule MealplanWeb.UserLive.Settings do
         )
 
         info = "A link to confirm your email change has been sent to the new address."
-        {:noreply, socket |> put_flash(:info, info)}
+        {:noreply, put_flash(socket, :info, info)}
 
       changeset ->
         {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}

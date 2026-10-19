@@ -1,8 +1,8 @@
 defmodule MealplanWeb.LoginThrottleTest do
   use MealplanWeb.ConnCase, async: true
 
-  import Phoenix.LiveViewTest
   import Mealplan.AccountsFixtures
+  import Phoenix.LiveViewTest
 
   alias MealplanWeb.LoginThrottle
 
@@ -74,7 +74,7 @@ defmodule MealplanWeb.LoginThrottleTest do
     end
 
     test "rejects even a correct password once the limit is hit", %{conn: conn} do
-      user = user_fixture() |> set_password()
+      user = set_password(user_fixture())
 
       for _ <- 1..10 do
         conn

@@ -41,14 +41,6 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
-  # One JSON object per line for the container log driver, with request_id
-  # to correlate a request's lines. Params are filtered by :filter_parameters.
-  config :logger, :default_handler,
-    formatter: LoggerJSON.Formatters.Basic.new(metadata: [:request_id])
-
-  # DATABASE_URL or DATABASE_HOST/_PORT/_NAME/_USER/_PASSWORD; see Mealplan.Repo.
-  config :mealplan, Mealplan.Repo, Mealplan.Repo.config_from_env()
-
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
@@ -68,13 +60,17 @@ if config_env() == :prod do
       Set it to the public hostname, e.g. mealplan.example.com
       """
 
-  # CIDRs of the reverse proxy (the Docker network shared with Nginx Proxy
-  # Manager). X-Forwarded-For/-Proto are ignored from any other peer.
-  config :mealplan,
-         :trusted_proxies,
-         MealplanWeb.TrustedProxy.parse_cidrs!(System.get_env("TRUSTED_PROXIES"))
+  # One JSON object per line for the container log driver, with request_id
+  # to correlate a request's lines. Params are filtered by :filter_parameters.
+  config :logger, :default_handler,
+    formatter: LoggerJSON.Formatters.Basic.new(metadata: [:request_id])
 
-  config :mealplan, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  # Outgoing email via an SMTP relay (TLS required). See Mealplan.Mailer for
+  # the SMTP_* variables.
+  config :mealplan, Mealplan.Mailer, Mealplan.Mailer.smtp_config_from_env()
+
+  # DATABASE_URL or DATABASE_HOST/_PORT/_NAME/_USER/_PASSWORD; see Mealplan.Repo.
+  config :mealplan, Mealplan.Repo, Mealplan.Repo.config_from_env()
 
   config :mealplan, MealplanWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
@@ -88,8 +84,12 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
-  # Outgoing email via an SMTP relay (TLS required). See Mealplan.Mailer for
-  # the SMTP_* variables.
-  config :mealplan, Mealplan.Mailer, Mealplan.Mailer.smtp_config_from_env()
+  config :mealplan, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
   config :mealplan, :mail_from, Mealplan.Mailer.from_env()
+
+  # CIDRs of the reverse proxy (the Docker network shared with Nginx Proxy
+  # Manager). X-Forwarded-For/-Proto are ignored from any other peer.
+  config :mealplan,
+         :trusted_proxies,
+         MealplanWeb.TrustedProxy.parse_cidrs!(System.get_env("TRUSTED_PROXIES"))
 end

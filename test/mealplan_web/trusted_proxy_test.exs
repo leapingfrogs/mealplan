@@ -2,8 +2,8 @@ defmodule MealplanWeb.TrustedProxyTest do
   # Mutates the :trusted_proxies application env.
   use ExUnit.Case, async: false
 
-  import Plug.Test
   import Plug.Conn
+  import Plug.Test
 
   alias MealplanWeb.TrustedProxy
 

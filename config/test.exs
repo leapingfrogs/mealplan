@@ -3,6 +3,16 @@ import Config
 # Only in tests, remove the complexity from the password hashing algorithm
 config :argon2_elixir, t_cost: 1, m_cost: 8
 
+# Errors raised in tests are expected; don't record them. Tests that need
+# ErrorTracker enable it explicitly.
+config :error_tracker, enabled: false
+
+# Print only warnings and errors during test
+config :logger, level: :warning
+
+# In test we don't send emails
+config :mealplan, Mealplan.Mailer, adapter: Swoosh.Adapters.Test
+
 # Configure your database. PGHOST/PGPORT are exported by devenv (see
 # devenv.nix) and default to localhost:5432 for the CI service container.
 #
@@ -25,23 +35,13 @@ config :mealplan, MealplanWeb.Endpoint,
   secret_key_base: "qHMyAPd/O0JwP5rTNfWAmteubQZ+xeRfbAYsJ4Qsx+AIcGiFFoRjolHpfjcrs6he",
   server: false
 
-# In test we don't send emails
-config :mealplan, Mealplan.Mailer, adapter: Swoosh.Adapters.Test
-
-# Print only warnings and errors during test
-config :logger, level: :warning
-
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
-
-# Enable helpful, but potentially expensive runtime checks
-config :phoenix_live_view,
-  enable_expensive_runtime_checks: true
 
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
 
-# Errors raised in tests are expected; don't record them. Tests that need
-# ErrorTracker enable it explicitly.
-config :error_tracker, enabled: false
+# Enable helpful, but potentially expensive runtime checks
+config :phoenix_live_view,
+  enable_expensive_runtime_checks: true
