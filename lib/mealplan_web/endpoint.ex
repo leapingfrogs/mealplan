@@ -36,6 +36,9 @@ defmodule MealplanWeb.Endpoint do
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :mealplan
   end
 
+  # Before request logging, telemetry and sessions so probes stay cheap.
+  plug MealplanWeb.Plugs.Health
+
   plug Phoenix.LiveDashboard.RequestLogger,
     param_key: "request_logger",
     cookie_key: "request_logger"
