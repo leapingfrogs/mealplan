@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MIX_ENV: test
+
+jobs:
+  # Formatting, lockfile hygiene, audits, compile warnings, Credo, Sobelow
+  # (`mix ci.lint`, the same alias `just check` runs).
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-elixir
+      - run: mix ci.lint
+
+  # Tests with the coverage floor from coveralls.json (`mix ci.test`).
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: mealplan
+          POSTGRES_PASSWORD: mealplan
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mealplan"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-elixir
+      - name: Test with coverage
+        run: |
+          set -o pipefail
+          mix ci.test | tee coverage.txt
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "### Test coverage"
+            echo '```'
+            sed -n '/^----------------$/,$p' coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dialyzer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-elixir
+      # Restore and save separately so a PLT built by a failing run is kept.
+      - name: Restore PLTs
+        id: plt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: priv/plts
+          key: plt-${{ runner.os }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
+          restore-keys: |
+            plt-${{ runner.os }}-
+      - name: Build PLTs
+        run: mix dialyzer --plt
+      - name: Save PLTs
+        if: steps.plt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: priv/plts
+          key: ${{ steps.plt-cache.outputs.cache-primary-key }}
+      - run: mix dialyzer --format github
+
+  # Informational: never blocks a merge. Dependabot opens the update PRs.
+  outdated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-elixir
+      - name: Outdated dependencies
+        run: |
+          {
+            echo "### Outdated Hex dependencies"
+            echo '```'
+            mix hex.outdated --all || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  actionlint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint (checksum verified)
+        run: |
+          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
+          echo "${ACTIONLINT_SHA256}  ${tarball}" | sha256sum --check --strict
+          tar -xzf "${tarball}" actionlint
+      - run: ./actionlint -color

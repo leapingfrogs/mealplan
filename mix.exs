@@ -41,6 +41,8 @@ defmodule Mealplan.MixProject do
       preferred_envs: [
         precommit: :test,
         ci: :test,
+        "ci.lint": :test,
+        "ci.test": :test,
         coveralls: :test,
         "coveralls.html": :test,
         "coveralls.json": :test,
@@ -125,18 +127,21 @@ defmodule Mealplan.MixProject do
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
-      # The checks CI runs (Dialyzer is separate: it is slow). `just check` runs
-      # this plus Dialyzer and commit-message linting.
-      ci: [
+      # The checks CI runs, as its lint and test jobs (Dialyzer is a separate job:
+      # it is slow). `just check` runs `ci` plus Dialyzer and commit linting.
+      ci: ["ci.lint", "ci.test"],
+      "ci.lint": [
+        # First: Hex's own tasks can't be found once the formatter plugins have
+        # compiled the project in this VM (e.g. on a cold CI cache).
+        "hex.audit",
         "format --check-formatted",
         "deps.unlock --check-unused",
-        "hex.audit",
         "deps.audit",
         "compile --warnings-as-errors --force",
         "credo --strict",
-        "sobelow --config",
-        "coveralls --warnings-as-errors"
-      ]
+        "sobelow --config"
+      ],
+      "ci.test": ["coveralls --warnings-as-errors"]
     ]
   end
 end

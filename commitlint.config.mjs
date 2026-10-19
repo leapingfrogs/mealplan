@@ -8,5 +8,9 @@ export default {
       "always",
       ["feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore", "style", "revert"],
     ],
+    // Only the header and footers matter to release-please; Dependabot bodies
+    // quote release notes with long lines and URLs.
+    "body-max-line-length": [0],
+    "footer-max-line-length": [0],
   },
 };

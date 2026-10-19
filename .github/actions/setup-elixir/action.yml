@@ -1,0 +1,24 @@
+name: Set up Elixir
+description: >-
+  Install Erlang/Elixir from .tool-versions, restore deps and _build for the
+  current MIX_ENV, and fetch dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+      with:
+        version-file: .tool-versions
+        version-type: strict
+
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          deps
+          _build
+        key: mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
+        restore-keys: |
+          mix-${{ runner.os }}-${{ env.MIX_ENV }}-
+
+    - name: Fetch dependencies
+      shell: bash
+      run: mix deps.get --check-locked
