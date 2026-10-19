@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Deploys a released version to the TrueNAS Custom App.
+#
+#   scripts/deploy v0.1.1            # deploy
+#   scripts/deploy --rollback v0.1.0 # same, with a confirmation and a warning
+#   scripts/deploy --dry-run v0.1.1  # verify and render only; touch nothing
+#
+# Settings come from .env.deploy (see .env.deploy.example): MEALPLAN_SSH,
+# MEALPLAN_ROOT, NPM_NETWORK, MEALPLAN_PROJECT, MEALPLAN_APP, MEALPLAN_URL.
+#
+# Steps: resolve the tag's digest on GHCR and verify its build provenance, render
+# compose.yaml pinned to that digest, copy it with scripts/deploy-remote to the
+# NAS and run that with sudo (one password prompt), then check the public URL.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+repo=leapingfrogs/mealplan
+image_name=ghcr.io/$repo
+
+rollback=false dry_run=false
+while [ $# -gt 0 ]; do
+  case $1 in
+    --rollback) rollback=true ;;
+    --dry-run) dry_run=true ;;
+    -*) echo "unknown option: $1" >&2; exit 2 ;;
+    *) version=$1 ;;
+  esac
+  shift
+done
+[ -n "${version:-}" ] || { echo "usage: $0 [--rollback] [--dry-run] VERSION" >&2; exit 2; }
+[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must look like v1.2.3, got: $version" >&2; exit 2; }
+
+if [ -f .env.deploy ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env.deploy
+  set +a
+fi
+: "${MEALPLAN_ROOT:?set MEALPLAN_ROOT in .env.deploy}"
+: "${NPM_NETWORK:?set NPM_NETWORK in .env.deploy}"
+: "${MEALPLAN_URL:?set MEALPLAN_URL in .env.deploy, e.g. https://mealplan.example.com}"
+app=${MEALPLAN_APP:-mealplan}
+project=${MEALPLAN_PROJECT:-ix-$app}
+# Both end up in a remote command line.
+[[ $app =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "MEALPLAN_APP is not a valid TrueNAS app name: $app" >&2; exit 2; }
+[[ $project =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "MEALPLAN_PROJECT is not a valid Compose project name: $project" >&2; exit 2; }
+
+step() { echo "==> $*"; }
+fail() { echo "ERROR: $*" >&2; exit 1; }
+
+step "resolving $image_name:$version"
+token=$(curl -fsS "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r .token) \
+  || fail "could not get a GHCR pull token"
+digest=$(curl -fsSI -H "Authorization: Bearer $token" \
+  -H "Accept: application/vnd.oci.image.index.v1+json" \
+  -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+  "https://ghcr.io/v2/$repo/manifests/$version" \
+  | tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }' || true)
+[[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || fail "$version not found on GHCR (is the release finished?)"
+image=$image_name:$version@$digest
+echo "    $image"
+
+step "verifying build provenance"
+gh attestation verify "oci://$image_name@$digest" --repo "$repo" --format json >/dev/null \
+  || fail "provenance verification failed for $digest: refusing to deploy"
+echo "    built by $repo's release workflow"
+
+compose=$(mktemp)
+trap 'rm -f "$compose"' EXIT
+scripts/render-truenas-compose "$version@$digest" "$MEALPLAN_ROOT" "$NPM_NETWORK" > "$compose"
+
+if $dry_run; then
+  step "dry run: rendered compose for $app ($(wc -l < "$compose") lines); not deploying"
+  exit 0
+fi
+: "${MEALPLAN_SSH:?set MEALPLAN_SSH in .env.deploy, e.g. truenas_admin@truenas-scale}"
+
+if $rollback; then
+  cat >&2 <<EOF
+Rolling back to $version. Code is rolled back, the database is not: if a newer
+release ran migrations this version doesn't expect, restore the pre-deploy dump
+taken before that release (docs/backups.md). A fresh dump is taken first.
+EOF
+  read -r -p "Continue? [y/N] " answer
+  [[ $answer =~ ^[Yy]$ ]] || fail "aborted"
+fi
+
+step "copying deploy files to $MEALPLAN_SSH"
+remote_dir=.mealplan-deploy
+ssh "$MEALPLAN_SSH" "umask 077 && mkdir -p $remote_dir && cat > $remote_dir/compose.yaml" < "$compose"
+ssh "$MEALPLAN_SSH" "umask 077 && cat > $remote_dir/deploy-remote" < scripts/deploy-remote
+
+step "deploying on the NAS (sudo will ask for your password)"
+ssh -t "$MEALPLAN_SSH" "sudo bash $remote_dir/deploy-remote $app $project $image \$HOME/$remote_dir/compose.yaml"
+
+step "checking $MEALPLAN_URL/health/ready"
+for _ in $(seq 1 12); do
+  if [ "$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$MEALPLAN_URL/health/ready")" = 200 ]; then
+    echo "    ready"
+    step "deployed $version"
+    exit 0
+  fi
+  sleep 5
+done
+fail "$MEALPLAN_URL/health/ready is not answering 200 (the app reported healthy on the NAS: check NPM)"

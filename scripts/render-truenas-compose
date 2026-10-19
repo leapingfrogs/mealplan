@@ -6,6 +6,9 @@
 #
 #   scripts/render-truenas-compose VERSION ROOT NPM_NETWORK > mealplan.yaml
 #   scripts/render-truenas-compose v0.1.0 /mnt/storage/Apps/mealplan ix-nginx-proxy-manager_default
+#
+# VERSION may carry a digest (v0.1.0@sha256:<64 hex>) to pin the exact image;
+# `just deploy` always does.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,7 +19,7 @@ fi
 version=$1 root=$2 network=$3
 
 # Strict formats: the values are written into YAML unquoted.
-[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must look like v1.2.3, got: $version" >&2; exit 2; }
+[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+(@sha256:[0-9a-f]{64})?$ ]] || { echo "VERSION must look like v1.2.3 or v1.2.3@sha256:<64 hex>, got: $version" >&2; exit 2; }
 [[ $root =~ ^/mnt/[A-Za-z0-9._/-]*[A-Za-z0-9._-]$ ]] || { echo "ROOT must be an absolute /mnt/... path without spaces or a trailing slash, got: $root" >&2; exit 2; }
 [[ $network =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || { echo "NPM_NETWORK is not a valid Docker network name: $network" >&2; exit 2; }
 

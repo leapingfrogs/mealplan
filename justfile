@@ -38,7 +38,7 @@ test *args:
     {{ run }} mix test {{ args }}
 
 # Everything CI checks: commits, format, Credo, Sobelow, audits, coverage, Dialyzer
-check: lint-commits docker-lint
+check: lint-commits docker-lint lint-scripts
     {{ run }} mix ci
     {{ run }} mix dialyzer
 
@@ -65,6 +65,10 @@ lint-commits:
     done
     exit $status
 
+# Shellcheck the deploy and test scripts (they run as root on the NAS)
+lint-scripts:
+    {{ run }} shellcheck --severity=warning scripts/*
+
 # Lint the Dockerfile and check its Elixir/Erlang versions match .tool-versions
 docker-lint:
     {{ run }} hadolint Dockerfile
@@ -87,6 +91,14 @@ docker-scan:
     trap 'rm -f "$tar"' EXIT
     docker save mealplan:local -o "$tar"
     {{ run }} trivy image --input "$tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+# Deploy a released version to the NAS: just deploy [--dry-run] vX.Y.Z (settings: .env.deploy)
+deploy +args:
+    scripts/deploy {{ args }}
+
+# Redeploy an earlier version (asks first; the database is not rolled back)
+rollback version:
+    scripts/deploy --rollback {{ version }}
 
 # Print compose.yaml rendered for the TrueNAS Custom App (paste via "Install via YAML")
 truenas-yaml version:

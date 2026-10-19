@@ -35,6 +35,7 @@ in
     inotify-tools # file watching for Phoenix live reload
     hadolint # Dockerfile linting
     actionlint # GitHub Actions workflow linting
+    shellcheck # deploy and test scripts
     trivy # container image scanning
     nodejs # commitlint (Conventional Commits) via npx
   ];
