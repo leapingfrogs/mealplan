@@ -1,5 +1,8 @@
 import Config
 
+# Only in tests, remove the complexity from the password hashing algorithm
+config :argon2_elixir, t_cost: 1, m_cost: 8
+
 # Configure your database. PGHOST/PGPORT are exported by devenv (see
 # devenv.nix) and default to localhost:5432 for the CI service container.
 #
