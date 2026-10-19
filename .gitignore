@@ -51,6 +51,7 @@ devenv.local.yaml
 .env
 .env.*
 !.env.example
+!.env.deploy.example
 
 # Dialyzer PLTs (cached in CI)
 /priv/plts/

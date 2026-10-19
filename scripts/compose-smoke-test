@@ -65,6 +65,13 @@ check "app container healthy"   healthy "$(docker inspect -f '{{.State.Health.St
 check "db publishes no host ports" 0 "$(docker inspect -f '{{len .HostConfig.PortBindings}}' "$("${compose[@]}" ps -q db)")"
 check "backup container healthy" healthy "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q backup)")"
 
+# What NPM does: reach the app by its alias from another container on the proxy
+# network (using the app image for its bash /dev/tcp).
+alias_status=$(docker run --rm --network "$NPM_NETWORK" --entrypoint bash "${MEALPLAN_TEST_IMAGE:-mealplan:local}" -c \
+  'exec 3<>/dev/tcp/mealplan/4000 && printf "GET /health/live HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && head -n1 <&3' \
+  2>/dev/null | awk '{print $2}' || true)
+check "proxy network reaches mealplan:4000" 200 "$alias_status"
+
 # Backup and restore: a manual dump must restore into a fresh database with the
 # same migrations recorded as the live one.
 backup() { "${compose[@]}" exec -T backup bash -c 'export PGPASSWORD="$(cat /run/secrets/db_password)"; '"$1"; }

@@ -6,6 +6,10 @@
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# NAS deployment settings (see .env.deploy.example); optional for everything else.
+set dotenv-load
+set dotenv-filename := ".env.deploy"
+
 run := if env("DEVENV_ROOT", env("CI", "")) == "" { "devenv shell --" } else { "" }
 
 # List recipes
@@ -83,6 +87,10 @@ docker-scan:
     trap 'rm -f "$tar"' EXIT
     docker save mealplan:local -o "$tar"
     {{ run }} trivy image --input "$tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+# Print compose.yaml rendered for the TrueNAS Custom App (paste via "Install via YAML")
+truenas-yaml version:
+    @scripts/render-truenas-compose {{ version }} "${MEALPLAN_ROOT:?set MEALPLAN_ROOT (see .env.deploy.example)}" "${NPM_NETWORK:?set NPM_NETWORK (see .env.deploy.example)}"
 
 # On-demand DB dump on the NAS via MEALPLAN_SSH (project: MEALPLAN_PROJECT, default ix-mealplan)
 backup-now:
