@@ -1,0 +1,9 @@
+# Local smoke-test override for compose.yaml (see scripts/compose-smoke-test).
+# Uses the locally built image and publishes the app on loopback, standing in
+# for Nginx Proxy Manager.
+services:
+  app:
+    image: ${MEALPLAN_TEST_IMAGE:-mealplan:local}
+    pull_policy: never
+    ports:
+      - "127.0.0.1:${MEALPLAN_TEST_PORT:-4100}:4000"

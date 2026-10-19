@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Fails if the Dockerfile builder image's Elixir/Erlang versions differ from
+# .tool-versions (the single source of truth shared with devenv and CI).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+erlang=$(awk '$1 == "erlang" {print $2}' .tool-versions)
+elixir=$(awk '$1 == "elixir" {print $2}' .tool-versions)
+elixir=${elixir%%-otp-*}
+
+tag=$(sed -n 's|^FROM hexpm/elixir:\([^@ ]*\).* AS build$|\1|p' Dockerfile)
+if [ -z "$tag" ]; then
+  echo "check-docker-versions: no 'FROM hexpm/elixir:... AS build' line in Dockerfile" >&2
+  exit 1
+fi
+
+expected="${elixir}-erlang-${erlang}-"
+if [[ "$tag" != "$expected"* ]]; then
+  echo "check-docker-versions: Dockerfile builder is hexpm/elixir:${tag}" >&2
+  echo "  but .tool-versions wants elixir ${elixir} / erlang ${erlang} (tag prefix ${expected})" >&2
+  exit 1
+fi
+echo "check-docker-versions: hexpm/elixir:${tag} matches .tool-versions"
