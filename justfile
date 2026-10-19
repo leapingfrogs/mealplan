@@ -34,7 +34,7 @@ test *args:
     {{ run }} mix test {{ args }}
 
 # Everything CI checks: commits, format, Credo, Sobelow, audits, coverage, Dialyzer
-check: lint-commits
+check: lint-commits docker-lint
     {{ run }} mix ci
     {{ run }} mix dialyzer
 
@@ -60,6 +60,25 @@ lint-commits:
       fi
     done
     exit $status
+
+# Lint the Dockerfile and check its Elixir/Erlang versions match .tool-versions
+docker-lint:
+    {{ run }} hadolint Dockerfile
+    scripts/check-docker-versions
+
+# Build the production image locally as mealplan:local
+docker-build:
+    docker build $(docker --version | grep -qi podman && echo --format docker) -t mealplan:local \
+      --build-arg VERSION=local --build-arg REVISION=$(jj log -r @- --no-graph -T commit_id) .
+
+# Scan mealplan:local for HIGH/CRITICAL vulnerabilities (as CI does)
+docker-scan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tar=$(mktemp --suffix .tar)
+    trap 'rm -f "$tar"' EXIT
+    docker save mealplan:local -o "$tar"
+    {{ run }} trivy image --input "$tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
 
 # Show outdated Hex and npm dependencies
 outdated:

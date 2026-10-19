@@ -1,0 +1,10 @@
+# hadolint configuration (also used by CI). Fail on anything not ignored here.
+failure-threshold: info
+ignored:
+  # Pin apt package versions: Debian drops superseded versions from the
+  # archive, so exact pins break rebuilds. Base images are digest-pinned
+  # instead and the image is scanned by Trivy.
+  - DL3008
+  # Consecutive RUNs: kept separate on purpose so each step is its own cached
+  # layer (deps.compile vs assets.setup vs compile vs assets.deploy).
+  - DL3059
