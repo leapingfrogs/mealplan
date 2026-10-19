@@ -70,12 +70,24 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host =
+    System.get_env("PHX_HOST") ||
+      raise """
+      environment variable PHX_HOST is missing.
+      Set it to the public hostname, e.g. mealplan.example.com
+      """
+
+  # CIDRs of the reverse proxy (the Docker network shared with Nginx Proxy
+  # Manager). X-Forwarded-For/-Proto are ignored from any other peer.
+  config :mealplan,
+         :trusted_proxies,
+         MealplanWeb.TrustedProxy.parse_cidrs!(System.get_env("TRUSTED_PROXIES"))
 
   config :mealplan, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :mealplan, MealplanWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
+    check_origin: ["https://#{host}"],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

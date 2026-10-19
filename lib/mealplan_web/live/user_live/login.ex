@@ -2,6 +2,8 @@ defmodule MealplanWeb.UserLive.Login do
   use MealplanWeb, :live_view
 
   alias Mealplan.Accounts
+  alias MealplanWeb.LoginThrottle
+  alias MealplanWeb.TrustedProxy
 
   @impl true
   def render(assigns) do
@@ -99,7 +101,12 @@ defmodule MealplanWeb.UserLive.Login do
 
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok,
+     assign(socket,
+       form: form,
+       trigger_submit: false,
+       client_ip: if(connected?(socket), do: TrustedProxy.client_ip_from_socket(socket))
+     )}
   end
 
   @impl true
@@ -108,20 +115,26 @@ defmodule MealplanWeb.UserLive.Login do
   end
 
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
-    if user = Accounts.get_user_by_email(email) do
-      Accounts.deliver_login_instructions(
-        user,
-        &url(~p"/users/log-in/#{&1}")
-      )
+    case LoginThrottle.magic_link(socket.assigns.client_ip, email) do
+      :ok ->
+        if user = Accounts.get_user_by_email(email) do
+          Accounts.deliver_login_instructions(
+            user,
+            &url(~p"/users/log-in/#{&1}")
+          )
+        end
+
+        info =
+          "If your email is in our system, you will receive instructions for logging in shortly."
+
+        {:noreply,
+         socket
+         |> put_flash(:info, info)
+         |> push_navigate(to: ~p"/users/log-in")}
+
+      {:error, :rate_limited} ->
+        {:noreply, put_flash(socket, :error, LoginThrottle.message())}
     end
-
-    info =
-      "If your email is in our system, you will receive instructions for logging in shortly."
-
-    {:noreply,
-     socket
-     |> put_flash(:info, info)
-     |> push_navigate(to: ~p"/users/log-in")}
   end
 
   defp local_mail_adapter? do

@@ -9,8 +9,24 @@ defmodule MealplanWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {MealplanWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+
+    plug :put_secure_browser_headers, %{
+      "cross-origin-opener-policy" => "same-origin",
+      "permissions-policy" => "camera=(), microphone=(), geolocation=(), payment=()"
+    }
+
+    plug MealplanWeb.Plugs.ContentSecurityPolicy
     plug :fetch_current_scope_for_user
+  end
+
+  # LiveDashboard and the mailbox preview use inline scripts and styles, so
+  # these dev-only tools are served without our strict CSP.
+  pipeline :dev_tools do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
   end
 
   pipeline :api do
@@ -38,7 +54,7 @@ defmodule MealplanWeb.Router do
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
-      pipe_through :browser
+      pipe_through :dev_tools
 
       live_dashboard "/dashboard", metrics: MealplanWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview

@@ -33,7 +33,19 @@ defmodule MealplanWeb.ConnCase do
 
   setup tags do
     Mealplan.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+    {:ok, conn: with_unique_client_ip(Phoenix.ConnTest.build_conn())}
+  end
+
+  @doc """
+  Gives the connection a unique client IP so per-IP rate limits (which live
+  in a shared ETS table) don't leak between tests.
+  """
+  def with_unique_client_ip(conn) do
+    n = System.unique_integer([:positive])
+    ip = {10, rem(div(n, 65_536), 256), rem(div(n, 256), 256), rem(n, 256)}
+
+    %{conn | remote_ip: ip}
+    |> Plug.Test.put_peer_data(%{address: ip, port: 40_000, ssl_cert: nil})
   end
 
   @doc """

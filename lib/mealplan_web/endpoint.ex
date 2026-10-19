@@ -1,19 +1,30 @@
 defmodule MealplanWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :mealplan
 
-  # The session will be stored in the cookie and signed,
-  # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
+  # The session is stored in a signed and encrypted cookie. Cookies are marked
+  # `secure` automatically once TrustedProxy has set the scheme to https.
   @session_options [
     store: :cookie,
     key: "_mealplan_key",
     signing_salt: "3RGIK5Uk",
+    encryption_salt: "VQlIzKgkWwFT4W02E26EADf2C9QegfK",
     same_site: "Lax"
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
+
+  # Resolve the real client IP and scheme from Nginx Proxy Manager before
+  # anything relies on them. Only headers from trusted proxies are honoured.
+  plug MealplanWeb.TrustedProxy
+
+  # Redirect HTTP to HTTPS and send HSTS in production. Configured here rather
+  # than via the endpoint `:force_ssl` option so it runs after TrustedProxy
+  # instead of trusting X-Forwarded-Proto from any client.
+  if force_ssl = Application.compile_env(:mealplan, :force_ssl) do
+    plug Plug.SSL, Keyword.put_new(force_ssl, :host, {__MODULE__, :host, []})
+  end
 
   # Serve at "/" the static files from "priv/static" directory.
   #

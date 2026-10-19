@@ -7,17 +7,11 @@ import Config
 # before starting your production server.
 config :mealplan, MealplanWeb.Endpoint, cache_static_manifest: "priv/static/cache_manifest.json"
 
-# Force using SSL in production. This also sets the "strict-security-transport" header,
-# known as HSTS. If you have a health check endpoint, you may want to exclude it below.
-# Note `:force_ssl` is required to be set at compile-time.
-config :mealplan, MealplanWeb.Endpoint,
-  force_ssl: [
-    rewrite_on: [:x_forwarded_proto],
-    exclude: [
-      # paths: ["/health"],
-      hosts: ["localhost", "127.0.0.1"]
-    ]
-  ]
+# Redirect HTTP to HTTPS and send HSTS (Plug.SSL options, compile-time). Applied
+# in MealplanWeb.Endpoint after TrustedProxy has resolved the real scheme, so
+# X-Forwarded-Proto is only believed from Nginx Proxy Manager. localhost is
+# exempt so the container healthcheck can use plain HTTP.
+config :mealplan, :force_ssl, exclude: [hosts: ["localhost", "127.0.0.1"]]
 
 # Disable Swoosh Local Memory Storage
 config :swoosh, local: false
