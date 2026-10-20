@@ -62,6 +62,7 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
 | `Cooklang` | the parser (ADR 13): pure, never raises, no database |
 | `Meals` | meals and the recipes in them, with history |
 | `Planning` | planned meals, leftovers, skips, weeks, servings maths, copying |
+| `Transfer` | export as a Cooklang folder (ADR 14); reading, matching and applying imports |
 
 - **Scope first.** Every context function takes the caller's
   `%Scope{user, household}` and only touches that household. Owner-only
@@ -83,6 +84,11 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
   active rows only. Taking a recipe out of a meal that past plans used sets
   `meal_recipes.removed_on` rather than deleting the row: `Meal.meal_recipes`
   is the current recipes, `Meals.recipes_on/3` what a meal had on a date.
+- **Imports are untrusted input.** `Transfer.read/1` is pure and never
+  raises: zips are inflated with a running cap and CRC checks, entry names are
+  only keys, never paths on disk. Keep it that way, and keep the property
+  tests passing. `.cook` and `.menu` MIME types are set in `config/config.exs`;
+  after changing them run `mix deps.compile mime --force`.
 - **UI.** Phone first; check new screens at 390 px. Sheets and confirmation
   panels follow the week plan's patterns; avoid DaisyUI `alert` for panels
   with controls (it lays them out side by side).

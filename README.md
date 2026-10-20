@@ -3,14 +3,16 @@
 Meal planning and recipe management for the family, built with Elixir and
 Phoenix LiveView. Self-hosted on a TrueNAS appliance; accounts are invite-only.
 
-**Status:** Iteration 1, week planning. A household (owner plus invited
+**Status:** Iteration 2, import and export. A household (owner plus invited
 members) keeps recipes in [Cooklang](https://cooklang.org), builds meals from
 them, and plans the week on the phone: meal slots, servings, skips, leftovers
 (up to 14 days, so weekend batch cooking feeds the next week) and copying last
-week. Deleting follows an archive rule that keeps history. Built on iteration
-0: invite-only magic-link login, admin error dashboard, a hardened production
-stack with backups, CI, releases and one-command deploys. Next: import and
-export of recipes and meals (iteration 2), then shopping lists (iteration 3).
+week. Deleting follows an archive rule that keeps history. The owner can
+export recipes and meals as a Cooklang recipe folder and import them, or any
+Cooklang files, with a preview of every change. Built on iteration 0:
+invite-only magic-link login, admin error dashboard, a hardened production
+stack with backups, CI, releases and one-command deploys. Next: shopping lists
+(iteration 3).
 
 ## Stack
 
