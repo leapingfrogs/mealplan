@@ -88,6 +88,10 @@ defmodule Mealplan.Transfer.CookFile do
   def file_name(name) do
     name
     |> String.replace(~r/[\/\\:*?"<>|@#~{}\x00-\x1f\x7f]/u, "-")
+    # "--" and "[-" would start Cooklang comments in menu references.
+    |> String.replace(~r/-{2,}/, "-")
+    |> String.replace("[", "(")
+    |> String.replace("]", ")")
     |> String.trim()
     |> String.trim_leading(".")
     |> String.slice(0, 100)

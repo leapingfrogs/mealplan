@@ -16,6 +16,7 @@ defmodule Mealplan.Transfer do
   alias Mealplan.Recipes.Recipe
   alias Mealplan.Repo
   alias Mealplan.Transfer.CookFile
+  alias Mealplan.Transfer.Importer
   alias Mealplan.Transfer.Reader
 
   @doc """
@@ -46,6 +47,19 @@ defmodule Mealplan.Transfer do
   a `Mealplan.Transfer.Bundle`. Pure; never raises.
   """
   defdelegate read(uploads), to: Reader
+
+  @doc """
+  Matches a bundle against the household: an `%Import{}` of recipes and
+  meals with default actions (new ones added, matches skipped) and meal
+  references resolved.
+  """
+  defdelegate plan(scope, bundle), to: Importer
+
+  @doc """
+  Applies an import with the owner's `choices` (`%{key => action}`). All or
+  nothing; owner only; at most 5 an hour per household.
+  """
+  defdelegate apply(scope, import, choices), to: Importer
 
   @doc "Import limits, for forms and messages."
   defdelegate limits(), to: Reader
