@@ -100,6 +100,30 @@ defmodule MealplanWeb.MealLive.Show do
         </div>
       </div>
 
+      <section id="meal-slots" class="space-y-2">
+        <h2 class="text-sm font-medium text-base-content/70">Suits</h2>
+        <div class="flex flex-wrap gap-2">
+          <button
+            :for={slot <- @all_slots}
+            type="button"
+            id={"suits-#{slot.id}"}
+            class={[
+              "btn btn-sm rounded-full transition-colors",
+              if(tagged?(@meal, slot), do: "btn-primary", else: "btn-outline border-base-300")
+            ]}
+            aria-pressed={to_string(tagged?(@meal, slot))}
+            phx-click="toggle_slot"
+            phx-value-id={slot.id}
+            disabled={not is_nil(@meal.archived_at)}
+          >
+            <.icon :if={tagged?(@meal, slot)} name="hero-check" class="size-4" /> {slot.name}
+          </button>
+        </div>
+        <p :if={@meal.slots == []} class="text-xs text-base-content/60">
+          Tag the slots this meal suits, and planning those slots lists it first.
+        </p>
+      </section>
+
       <section class="space-y-3">
         <h2 class="text-lg font-semibold">Recipes</h2>
         <p
@@ -313,6 +337,16 @@ defmodule MealplanWeb.MealLive.Show do
     |> after_change(socket, "Couldn't remove that recipe.")
   end
 
+  def handle_event("toggle_slot", %{"id" => slot_id}, socket) do
+    %{meal: meal} = socket.assigns
+    current = Enum.map(meal.slots, & &1.id)
+    slot_ids = if slot_id in current, do: List.delete(current, slot_id), else: [slot_id | current]
+
+    socket.assigns.current_scope
+    |> Meals.set_slots(meal.id, slot_ids)
+    |> after_change(socket, "Couldn't change the slots.")
+  end
+
   def handle_event("move", %{"id" => recipe_id, "direction" => direction}, socket) do
     direction = if direction == "up", do: :up, else: :down
 
@@ -332,6 +366,7 @@ defmodule MealplanWeb.MealLive.Show do
     do: {:noreply, reload(socket)}
 
   def handle_info({:recipe_changed, _id}, socket), do: {:noreply, reload(socket)}
+  def handle_info({:household_changed, :meal_slots}, socket), do: {:noreply, reload(socket)}
   def handle_info(_message, socket), do: {:noreply, socket}
 
   defp reload(socket) do
@@ -345,7 +380,13 @@ defmodule MealplanWeb.MealLive.Show do
   end
 
   defp assign_meal(socket, meal) do
-    socket |> assign(meal: meal, page_title: meal.name) |> assign_candidates()
+    socket
+    |> assign(
+      meal: meal,
+      page_title: meal.name,
+      all_slots: Mealplan.Households.list_meal_slots(socket.assigns.current_scope)
+    )
+    |> assign_candidates()
   end
 
   # Recipes matching the picker's search that aren't in the meal yet.
@@ -363,6 +404,8 @@ defmodule MealplanWeb.MealLive.Show do
       picker_form: to_form(%{"q" => socket.assigns.picker_query})
     )
   end
+
+  defp tagged?(meal, slot), do: Enum.any?(meal.slots, &(&1.id == slot.id))
 
   defp recipe_summary([]), do: "No recipes"
   defp recipe_summary([_one]), do: "1 recipe"

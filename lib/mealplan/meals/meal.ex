@@ -9,7 +9,9 @@ defmodule Mealplan.Meals.Meal do
 
   alias Mealplan.Accounts.User
   alias Mealplan.Households.Household
+  alias Mealplan.Households.MealSlot
   alias Mealplan.Meals.MealRecipe
+  alias Mealplan.Meals.MealSlotTag
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -25,6 +27,13 @@ defmodule Mealplan.Meals.Meal do
     # `Mealplan.Meals.recipes_on/3`).
     has_many :meal_recipes, MealRecipe, where: [removed_on: nil], preload_order: [asc: :position]
     has_many :recipe_history, MealRecipe, preload_order: [asc: :position]
+    # The active slots it suits, in day order (read only; see
+    # `Mealplan.Meals.set_slots/3`). Tags on archived slots are kept but hidden.
+    many_to_many :slots, MealSlot,
+      join_through: MealSlotTag,
+      join_keys: [meal_id: :id, meal_slot_id: :id],
+      where: [archived_at: nil],
+      preload_order: [asc: :position]
 
     timestamps(type: :utc_datetime)
   end

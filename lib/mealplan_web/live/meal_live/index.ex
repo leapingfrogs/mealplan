@@ -73,7 +73,13 @@ defmodule MealplanWeb.MealLive.Index do
           >
             <span class="min-w-0">
               <span class="block truncate font-medium">{meal.name}</span>
-              <span class="text-sm text-base-content/60">{recipes(meal.recipe_count)}</span>
+              <span class="text-sm text-base-content/60">
+                {recipes(meal.recipe_count)}<span :if={meal.slots != []}> · {Enum.map_join(
+                  meal.slots,
+                  ", ",
+                  & &1.name
+                )}</span>
+              </span>
             </span>
             <.icon name="hero-chevron-right" class="size-4 shrink-0 opacity-40" />
           </.link>
@@ -109,6 +115,9 @@ defmodule MealplanWeb.MealLive.Index do
   # Another member added or changed a meal.
   @impl true
   def handle_info({:meal_changed, _id}, socket),
+    do: {:noreply, load(socket, socket.assigns.search)}
+
+  def handle_info({:household_changed, :meal_slots}, socket),
     do: {:noreply, load(socket, socket.assigns.search)}
 
   def handle_info(_message, socket), do: {:noreply, socket}
