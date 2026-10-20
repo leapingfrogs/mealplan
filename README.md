@@ -15,7 +15,7 @@ meals first, planning tags meals as you go, and tags travel through export
 and import. Built on iteration 0:
 invite-only magic-link login, admin error dashboard, a hardened production
 stack with backups, CI, releases and one-command deploys. Next: shopping
-lists (iteration 4).
+lists ([iteration 4](docs/design/iteration-4.md)).
 
 ## Stack
 

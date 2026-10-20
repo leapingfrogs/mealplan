@@ -4,7 +4,7 @@ Agreed 20 October 2026. Covers the stories in [USER_STORIES.md](../../USER_STORI
 The shopping list is designed at the data-model level so iteration 1 doesn't
 block it, but it's built in iteration 4. (It was iteration 2 until import and export,
 then meal slot tags, were put first: see [iteration 2](iteration-2.md) and
-[iteration 3](iteration-3.md).)
+[iteration 3](iteration-3.md); iteration 4 is designed in [iteration-4.md](iteration-4.md).)
 
 ## Scope
 
