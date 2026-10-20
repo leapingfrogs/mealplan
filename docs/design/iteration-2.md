@@ -161,3 +161,28 @@ the parser reads (ADR 13), so other metadata survives.
    named "Monday"; the owner can leave them out in the preview. Mealplan's own
    exports only ever contain meals.
 4. **Archived recipes and meals are left out** of exports.
+
+## Changes made while building
+
+The sections above describe the plan as agreed; this is what differs or was
+added, for anyone comparing with the code.
+
+- **Zip reading is stricter:** entries are inflated with a running cap (so a
+  zip lying about its sizes is still capped), each entry's CRC-32 is checked
+  (also when it sits in a data descriptor, as streaming tools write), and
+  paths outside the zip, encrypted entries and unknown compression are
+  reported.
+- **Export file names** also avoid `--` and `[`, which would start Cooklang
+  comments in `meals.menu` references (found by the round-trip test).
+- **Metadata:** front matter values wrapped onto indented lines and block
+  values (`|`, `>`) are read, as Cooklang tools write them (found importing
+  the cook.md quickstart pack), and servings take the first number in the
+  value (`Serves 4`).
+- **The preview** shows where each meal's recipes will link and follows the
+  choices: "Chilli (ours)" when skipped, "(copy)" when kept both, "(left
+  out)", "(not found)".
+- **`Meals.set_recipes/3`** replaces a meal's recipes, keeping history, for
+  "Replace ours".
+- **Uploads** need `.cook` and `.menu` MIME types, set in
+  `config/config.exs`.
+- **The recipe download** is an icon on phones, so the recipe header fits.
