@@ -65,6 +65,7 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
 | `Meals` | meals and the recipes in them, with history; slot tags (by slot id) |
 | `Planning` | planned meals, leftovers, skips, weeks, servings maths, copying |
 | `Transfer` | export as a Cooklang folder (ADR 14); reading, matching and applying imports |
+| `Shopping` | the shopping list: what's needed (computed from `Planning.cooking/3`), its range, ticks, manual items and staples |
 
 - **Scope first.** Every context function takes the caller's
   `%Scope{user, household}` and only touches that household. Owner-only
@@ -77,7 +78,8 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
 - **Live updates** go through `Households.broadcast/2` on `household:<id>`:
   `{:household_updated, h}`, `{:household_changed, :members | :invitations |
   :meal_slots}`, `{:member_removed, id}`, `:household_deleted`,
-  `{:recipe_changed, id}`, `{:meal_changed, id}`, `{:plan_changed, monday}`.
+  `{:recipe_changed, id}`, `{:meal_changed, id}`, `{:plan_changed, monday}`,
+  `{:shopping_changed, household_id}`.
   The `:require_household` on_mount hook subscribes every household page and
   passes messages on only if the LiveView defines `handle_info/2`; always
   keep a catch-all clause.
