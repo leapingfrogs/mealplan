@@ -30,10 +30,15 @@ defmodule Mealplan.Transfer.Importer do
   """
   def plan(%Scope{household: %Household{} = household} = scope, %Bundle{} = bundle) do
     recipes_by_name = by_name(Recipes.list_recipes(scope))
+    slots_by_name = by_name(Households.list_meal_slots(scope))
 
     meals_by_name =
       by_name(
-        Repo.all(from m in Meal, where: m.household_id == ^household.id and is_nil(m.archived_at))
+        Repo.all(
+          from m in Meal,
+            where: m.household_id == ^household.id and is_nil(m.archived_at),
+            preload: :slots
+        )
       )
 
     recipes =
@@ -55,6 +60,7 @@ defmodule Mealplan.Transfer.Importer do
           :references,
           Enum.map(imported.references, &resolve(&1, recipes, recipes_by_name))
         )
+        |> match_slots(imported.slot_names, slots_by_name)
       end)
 
     %Import{recipes: recipes, meals: meals, problems: bundle.problems}
@@ -72,6 +78,25 @@ defmodule Mealplan.Transfer.Importer do
       action: if(existing, do: :skip, else: :add)
     }
   end
+
+  # Slot names match our active slots ignoring case and spaces; the rest are
+  # kept to show. A meal with no slot names that matches ours starts with our
+  # tags, so replacing it doesn't clear them.
+  defp match_slots(%ImportItem{existing: %Meal{} = existing} = item, [], _slots_by_name),
+    do: %{item | slot_ids: Enum.map(existing.slots, & &1.id)}
+
+  defp match_slots(item, names, slots_by_name) do
+    {matched, unmatched} =
+      Enum.split_with(names, &Map.has_key?(slots_by_name, slot_key(&1)))
+
+    %{
+      item
+      | slot_ids: matched |> Enum.map(&slots_by_name[slot_key(&1)].id) |> Enum.uniq(),
+        unmatched_slots: unmatched
+    }
+  end
+
+  defp slot_key(name), do: name |> String.trim() |> String.downcase()
 
   defp servings(nil, usual), do: usual
   defp servings(servings, _usual), do: servings |> max(1) |> min(100)
@@ -115,6 +140,21 @@ defmodule Mealplan.Transfer.Importer do
     Enum.find_value(ours, fn {_name, recipe} ->
       if String.downcase(CookFile.file_name(recipe.name)) == file_name, do: recipe
     end)
+  end
+
+  @doc """
+  Sets the slots an imported meal will be tagged with (the preview's
+  choice); ids that aren't the household's active slots are dropped when
+  applying.
+  """
+  def choose_slots(%Import{} = import, key, slot_ids) when is_list(slot_ids) do
+    meals =
+      Enum.map(
+        import.meals,
+        &if(&1.key == key, do: %{&1 | slot_ids: Enum.uniq(slot_ids)}, else: &1)
+      )
+
+    %{import | meals: meals}
   end
 
   ## Applying
@@ -226,6 +266,8 @@ defmodule Mealplan.Transfer.Importer do
   end
 
   defp apply_meals(scope, items, recipe_ids) do
+    active_slots = scope |> Households.list_meal_slots() |> MapSet.new(& &1.id)
+
     taken =
       from(m in Meal,
         where: m.household_id == ^scope.household.id and is_nil(m.archived_at),
@@ -237,6 +279,8 @@ defmodule Mealplan.Transfer.Importer do
     items
     |> Enum.reduce_while({:ok, counts(), taken}, fn item, {:ok, counts, taken} ->
       ids = item.references |> Enum.map(&recipe_id(&1, recipe_ids)) |> Enum.reject(&is_nil/1)
+      # A slot deleted since the preview is dropped rather than failing the import.
+      item = %{item | slot_ids: Enum.filter(item.slot_ids, &MapSet.member?(active_slots, &1))}
 
       case apply_meal(scope, item, ids, taken) do
         {:ok, outcome, name} ->
@@ -263,23 +307,25 @@ defmodule Mealplan.Transfer.Importer do
          taken
        ) do
     case action do
-      :add -> create_meal(scope, free_name(imported.name, taken), recipe_ids)
-      :keep_both -> create_meal(scope, free_name(imported.name, taken), recipe_ids)
-      :replace -> replace_meal(scope, item.existing, recipe_ids)
+      :add -> create_meal(scope, free_name(imported.name, taken), recipe_ids, item.slot_ids)
+      :keep_both -> create_meal(scope, free_name(imported.name, taken), recipe_ids, item.slot_ids)
+      :replace -> replace_meal(scope, item.existing, recipe_ids, item.slot_ids)
       :skip -> {:ok, :skipped, item.existing.name}
       :leave_out -> {:ok, :left_out, ""}
     end
   end
 
-  defp create_meal(scope, name, recipe_ids) do
+  defp create_meal(scope, name, recipe_ids, slot_ids) do
     with {:ok, meal} <- Meals.create_meal(scope, %{name: name}),
-         {:ok, _meal} <- Meals.set_recipes(scope, meal.id, recipe_ids) do
+         {:ok, _meal} <- Meals.set_recipes(scope, meal.id, recipe_ids),
+         {:ok, _meal} <- Meals.set_slots(scope, meal.id, slot_ids) do
       {:ok, :added, meal.name}
     end
   end
 
-  defp replace_meal(scope, existing, recipe_ids) do
+  defp replace_meal(scope, existing, recipe_ids, slot_ids) do
     with {:ok, _meal} <- Meals.set_recipes(scope, existing.id, recipe_ids),
+         {:ok, _meal} <- Meals.set_slots(scope, existing.id, slot_ids),
          do: {:ok, :replaced, existing.name}
   end
 

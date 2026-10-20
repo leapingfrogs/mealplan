@@ -1,8 +1,9 @@
 defmodule MealplanWeb.HouseholdLive.Import do
   @moduledoc """
   Importing recipes and meals (owner only): upload files, review what will
-  happen to each recipe and meal and choose, then import everything chosen
-  in one go (iteration 2 design, "Screens").
+  happen to each recipe and meal and choose (including the slots each meal
+  is tagged with), then import everything chosen in one go (iteration 2 and
+  3 designs, "Screens" and "Export and import").
   """
   use MealplanWeb, :live_view
 
@@ -39,7 +40,12 @@ defmodule MealplanWeb.HouseholdLive.Import do
         <% :upload -> %>
           <.upload_step uploads={@uploads} />
         <% :preview -> %>
-          <.preview_step import={@import} choices={@choices} />
+          <.preview_step
+            import={@import}
+            choices={@choices}
+            slots={@slots}
+            bulk_slots={@bulk_slots}
+          />
         <% :done -> %>
           <.done_step summary={@summary} />
       <% end %>
@@ -106,6 +112,8 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
   attr :import, :any, required: true
   attr :choices, :map, required: true
+  attr :slots, :list, required: true
+  attr :bulk_slots, :list, required: true
 
   defp preview_step(assigns) do
     ~H"""
@@ -144,14 +152,58 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
       <section :if={@import.meals != []} class="space-y-2">
         <h2 class="text-lg font-semibold">Meals</h2>
+        <div
+          :if={@slots != [] and untagged(@import, @choices) != []}
+          id="bulk-slots"
+          class="space-y-2 rounded-box border border-base-300 bg-base-200/50 p-3"
+        >
+          <p class="text-sm">
+            Set slots for meals without any
+            <span class="text-base-content/60">
+              ({plural(length(untagged(@import, @choices)), "meal")})
+            </span>
+          </p>
+          <.slot_chips
+            id="bulk"
+            slots={@slots}
+            chosen={@bulk_slots}
+            event="toggle_bulk_slot"
+            key="bulk"
+          />
+          <button
+            type="button"
+            id="apply-bulk-slots"
+            class="btn btn-sm"
+            phx-click="apply_bulk_slots"
+            disabled={@bulk_slots == []}
+          >
+            Set for {plural(length(untagged(@import, @choices)), "meal")}
+          </button>
+        </div>
         <ul class="divide-y divide-base-300 rounded-box border border-base-300">
-          <li :for={item <- @import.meals} id={"item-#{item.key}"} class="space-y-1 px-3 py-2">
+          <li :for={item <- @import.meals} id={"item-#{item.key}"} class="space-y-2 px-3 py-2">
             <.item_row item={item} choice={@choices[item.key]}>
               <:detail>
                 {references(item, @import, @choices)}
                 <span :if={item.existing} class="text-warning">· we already have this meal</span>
               </:detail>
             </.item_row>
+            <div :if={@slots != [] and tags?(@choices[item.key])} class="space-y-1">
+              <.slot_chips
+                id={item.key}
+                slots={@slots}
+                chosen={item.slot_ids}
+                event="toggle_slot"
+                key={item.key}
+              />
+              <p
+                :if={item.unmatched_slots != []}
+                id={"unmatched-#{item.key}"}
+                class="text-xs text-warning"
+              >
+                {Enum.map_join(item.unmatched_slots, ", ", &"#{&1}: no such slot")}
+              </p>
+            </div>
           </li>
         </ul>
       </section>
@@ -226,6 +278,34 @@ defmodule MealplanWeb.HouseholdLive.Import do
     """
   end
 
+  attr :id, :string, required: true
+  attr :slots, :list, required: true
+  attr :chosen, :list, required: true
+  attr :event, :string, required: true
+  attr :key, :string, required: true
+
+  defp slot_chips(assigns) do
+    ~H"""
+    <div id={"slots-#{@id}"} class="flex flex-wrap gap-1.5" role="group" aria-label="Slots">
+      <button
+        :for={slot <- @slots}
+        type="button"
+        id={"slot-#{@id}-#{slot.id}"}
+        class={[
+          "btn btn-xs rounded-full transition-colors",
+          if(slot.id in @chosen, do: "btn-primary", else: "btn-outline border-base-300")
+        ]}
+        aria-pressed={to_string(slot.id in @chosen)}
+        phx-click={@event}
+        phx-value-key={@key}
+        phx-value-slot={slot.id}
+      >
+        <.icon :if={slot.id in @chosen} name="hero-check" class="size-3" /> {slot.name}
+      </button>
+    </div>
+    """
+  end
+
   attr :summary, :map, required: true
 
   defp done_step(assigns) do
@@ -255,6 +335,7 @@ defmodule MealplanWeb.HouseholdLive.Import do
       {:ok,
        socket
        |> assign(page_title: "Import", step: :upload, import: nil, choices: %{}, summary: nil)
+       |> assign(slots: [], bulk_slots: [])
        |> allow_upload(:files,
          accept: ~w(.zip .cook .menu),
          max_entries: limits.files,
@@ -282,12 +363,50 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
     import = Transfer.plan(socket.assigns.current_scope, Transfer.read(uploads))
     choices = Map.new(import.recipes ++ import.meals, &{&1.key, &1.action})
+    slots = Households.list_meal_slots(socket.assigns.current_scope)
 
-    {:noreply, assign(socket, step: :preview, import: import, choices: choices)}
+    {:noreply,
+     assign(socket,
+       step: :preview,
+       import: import,
+       choices: choices,
+       slots: slots,
+       bulk_slots: []
+     )}
   end
 
   def handle_event("choose", %{"choices" => chosen}, socket) do
     {:noreply, assign(socket, choices: merge_choices(socket.assigns, chosen))}
+  end
+
+  def handle_event("toggle_slot", %{"key" => key, "slot" => slot_id}, socket) do
+    %{import: import, slots: slots} = socket.assigns
+
+    case {Enum.find(import.meals, &(&1.key == key)), slot_id in Enum.map(slots, & &1.id)} do
+      {%ImportItem{} = item, true} ->
+        {:noreply,
+         assign(socket,
+           import: Transfer.choose_slots(import, key, toggle(item.slot_ids, slot_id))
+         )}
+
+      _unknown ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_bulk_slot", %{"slot" => slot_id}, socket) do
+    if slot_id in Enum.map(socket.assigns.slots, & &1.id),
+      do: {:noreply, assign(socket, bulk_slots: toggle(socket.assigns.bulk_slots, slot_id))},
+      else: {:noreply, socket}
+  end
+
+  def handle_event("apply_bulk_slots", _params, socket) do
+    %{import: import, choices: choices, bulk_slots: bulk} = socket.assigns
+
+    import =
+      Enum.reduce(untagged(import, choices), import, &Transfer.choose_slots(&2, &1.key, bulk))
+
+    {:noreply, assign(socket, import: import, bulk_slots: [])}
   end
 
   def handle_event("apply", params, socket) do
@@ -315,7 +434,8 @@ defmodule MealplanWeb.HouseholdLive.Import do
   end
 
   def handle_event("start_over", _params, socket) do
-    {:noreply, assign(socket, step: :upload, import: nil, choices: %{}, summary: nil)}
+    {:noreply,
+     assign(socket, step: :upload, import: nil, choices: %{}, summary: nil, bulk_slots: [])}
   end
 
   @impl true
@@ -328,6 +448,14 @@ defmodule MealplanWeb.HouseholdLive.Import do
       {item.key, action || choices[item.key]}
     end
   end
+
+  defp toggle(ids, id), do: if(id in ids, do: List.delete(ids, id), else: ids ++ [id])
+
+  # Tags only matter for meals being added, kept or replacing ours.
+  defp tags?(action), do: action in [:add, :keep_both, :replace]
+
+  defp untagged(import, choices),
+    do: Enum.filter(import.meals, &(tags?(choices[&1.key]) and &1.slot_ids == []))
 
   defp counts(import) do
     items = import.recipes ++ import.meals
