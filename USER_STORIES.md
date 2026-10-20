@@ -93,3 +93,17 @@ More than one meal can be planned in the same slot on the same day.
 
 Meal planning weeks start on Monday. A week is fully planned when every meal slot on every day has at least one planned meal or is marked as skipped.
 
+
+## Import and export (iteration 2)
+
+As the owner of a household I am able to export the household's recipes and meals as a single file, so I can keep a copy, edit the recipes in other Cooklang tools, or set up another household with them.
+
+As the owner of a household I am able to import recipes and meals from a file exported by Mealplan, or from Cooklang files (`.cook` recipes, a `.menu` of meals, or a zip of a recipe folder), so I can set up our recipes and meals without typing each one in.
+
+Before an import saves anything I see a preview: the recipes and meals that will be added, the ones that match a recipe or meal we already have (by name), and any problems with the files. For each match I choose whether to skip it, replace ours, or keep both, and I can leave out anything I don't want. Nothing changes until I confirm, and then either everything I chose is imported or nothing is.
+
+Meals in an import keep their recipes: a meal that refers to a recipe in the same import, or to one we already have with that name, is linked to it; anything it refers to that can't be found is reported in the preview and left out.
+
+As the owner of a household I am able to download a single recipe as a `.cook` file from its page.
+
+Archived recipes and meals are not exported. Plans, meal slots and members are not part of import or export.

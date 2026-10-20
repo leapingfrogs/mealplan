@@ -9,8 +9,8 @@ them, and plans the week on the phone: meal slots, servings, skips, leftovers
 (up to 14 days, so weekend batch cooking feeds the next week) and copying last
 week. Deleting follows an archive rule that keeps history. Built on iteration
 0: invite-only magic-link login, admin error dashboard, a hardened production
-stack with backups, CI, releases and one-command deploys. Shopping lists come
-next (iteration 2).
+stack with backups, CI, releases and one-command deploys. Next: import and
+export of recipes and meals (iteration 2), then shopping lists (iteration 3).
 
 ## Stack
 

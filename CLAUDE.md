@@ -51,7 +51,8 @@ from `.tool-versions`, the single source shared with CI and the Dockerfile.
 
 ## The domain
 
-The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md);
+The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
+[iteration-2.md](docs/design/iteration-2.md) for import and export);
 [USER_STORIES.md](USER_STORIES.md) is the source of the behaviour.
 
 | Context | Owns |
