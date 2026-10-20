@@ -35,7 +35,7 @@ defmodule MealplanWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
+    <header class="navbar flex-wrap gap-y-1 px-4 sm:px-6 lg:px-8">
       <div class="flex-1 flex items-baseline gap-3 min-w-0">
         <.link navigate={~p"/"} class="text-lg font-semibold tracking-tight">Mealplan</.link>
         <span
@@ -46,8 +46,12 @@ defmodule MealplanWeb.Layouts do
           {@current_scope.household.name}
         </span>
       </div>
-      <nav :if={@current_scope && @current_scope.household} class="flex-none flex gap-1 mr-2">
+      <nav
+        :if={@current_scope && @current_scope.household}
+        class="order-last flex w-full gap-1 sm:order-none sm:mr-2 sm:w-auto sm:flex-none"
+      >
         <.link navigate={~p"/plan"} id="nav-plan" class="btn btn-ghost btn-sm">Plan</.link>
+        <.link navigate={~p"/recipes"} id="nav-recipes" class="btn btn-ghost btn-sm">Recipes</.link>
         <.link navigate={~p"/household"} id="nav-household" class="btn btn-ghost btn-sm">
           Household
         </.link>

@@ -86,7 +86,6 @@ same keys.
 | `name` | Required |
 | `servings` | Positive integer; the base for scaling |
 | `source` | Cooklang text, the source of truth. May be empty |
-| `parsed` | jsonb: steps, metadata, parse warnings. Rebuilt on every save |
 | `created_by_id` | → users, for display only |
 | `archived_at` | The archive rule |
 
@@ -98,9 +97,13 @@ can aggregate in SQL.
 | Field | Notes |
 |---|---|
 | `name`, `key` | As written, plus a normalised key (lower-case, trimmed, singular) for merging |
-| `quantity` | Decimal, or null for "to taste", "some" |
+| `quantity`, `quantity_text` | Decimal; or the text as written ("few") in `quantity_text`; both null for "some" |
 | `unit` | As written, plus canonical unit and dimension (mass, volume, count) for conversion |
 | `scalable` | False for quantities that shouldn't scale |
+| `optional`, `note` | `@?` ingredients, and `(note)` after the braces |
+
+The steps aren't stored: pages parse `source` when they render it, which
+takes milliseconds, so there is no derived copy to keep in step.
 
 ### meals and meal_recipes (new)
 
