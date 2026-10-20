@@ -17,17 +17,22 @@ defmodule Mealplan.Accounts.Scope do
   """
 
   alias Mealplan.Accounts.User
+  alias Mealplan.Households.Household
 
-  defstruct user: nil
+  defstruct user: nil, household: nil
 
   @doc """
-  Creates a scope for the given user.
+  Creates a scope for the given user, including their household when it has
+  been loaded (the session lookup always loads it).
 
   Returns nil if no user is given.
   """
   def for_user(%User{} = user) do
-    %__MODULE__{user: user}
+    %__MODULE__{user: user, household: loaded_household(user)}
   end
 
   def for_user(nil), do: nil
+
+  defp loaded_household(%User{household: %Household{} = household}), do: household
+  defp loaded_household(_user), do: nil
 end

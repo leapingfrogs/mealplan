@@ -64,8 +64,11 @@ defmodule Mealplan.Accounts.UserToken do
     query =
       from token in by_token_and_context_query(token, "session"),
         join: user in assoc(token, :user),
+        left_join: household in assoc(user, :household),
         where: token.inserted_at > ago(@session_validity_in_days, "day"),
-        select: {%{user | authenticated_at: token.authenticated_at}, token.inserted_at}
+        select:
+          {%{user | authenticated_at: token.authenticated_at, household: household},
+           token.inserted_at}
 
     {:ok, query}
   end

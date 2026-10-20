@@ -14,6 +14,8 @@ defmodule Mealplan.Accounts.User do
     field :admin, :boolean, default: false
     field :authenticated_at, :utc_datetime, virtual: true
 
+    belongs_to :household, Mealplan.Households.Household
+
     timestamps(type: :utc_datetime)
   end
 

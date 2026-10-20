@@ -69,6 +69,21 @@ defmodule MealplanWeb.ConnCase do
   end
 
   @doc """
+  Setup helper that registers and logs in a user who owns a household.
+
+      setup :register_and_log_in_user_with_household
+
+  Adds `conn`, `user`, `household` and `scope` (including the household) to
+  the test context.
+  """
+  def register_and_log_in_user_with_household(%{conn: conn}) do
+    %{user: user, household: household, scope: scope} =
+      Mealplan.HouseholdsFixtures.household_fixture()
+
+    %{conn: log_in_user(conn, user), user: user, household: household, scope: scope}
+  end
+
+  @doc """
   Logs the given `user` into the `conn`.
 
   It returns an updated `conn`.

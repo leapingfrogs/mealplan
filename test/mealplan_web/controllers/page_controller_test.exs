@@ -1,8 +1,7 @@
 defmodule MealplanWeb.PageControllerTest do
-  use MealplanWeb.ConnCase
+  use MealplanWeb.ConnCase, async: true
 
-  test "GET /", %{conn: conn} do
-    conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+  test "GET / sends people to the week plan", %{conn: conn} do
+    assert redirected_to(get(conn, ~p"/")) == ~p"/plan"
   end
 end

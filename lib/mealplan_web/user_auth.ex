@@ -230,6 +230,20 @@ defmodule MealplanWeb.UserAuth do
     end
   end
 
+  # For pages that need a household (planning, recipes, ...). Use after
+  # :require_authenticated; users without one are sent to create or join one.
+  def on_mount(:require_household, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    case socket.assigns.current_scope do
+      %Scope{household: %Mealplan.Households.Household{}} ->
+        {:cont, socket}
+
+      _no_household ->
+        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/welcome")}
+    end
+  end
+
   # Defence in depth: the HTTP request is already checked by `require_admin`,
   # but the websocket mount re-reads the session independently.
   def on_mount(:require_admin, _params, session, socket) do

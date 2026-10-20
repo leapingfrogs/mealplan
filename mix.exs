@@ -89,6 +89,7 @@ defmodule Mealplan.MixProject do
       {:swoosh, "~> 1.16"},
       {:gen_smtp, "~> 1.3"},
       {:hammer, "~> 7.5"},
+      {:tz, "~> 0.28.4"},
       {:logger_json, "~> 7.0"},
       {:error_tracker, "~> 0.9"},
       {:req, "~> 0.5"},

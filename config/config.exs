@@ -6,6 +6,10 @@
 
 import Config
 
+# IANA time zone data (compiled in, no runtime downloads) for households'
+# local dates and weeks.
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
 # Self-hosted error tracking: errors are stored in our own Postgres and viewed
 # at /admin/errors. Only resolved errors are pruned, after 30 days.
 config :error_tracker,
@@ -37,6 +41,11 @@ config :logger, :default_formatter,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :mealplan, Mealplan.Mailer, adapter: Swoosh.Adapters.Local
+
+# UUID keys by default in migrations, matching the schemas.
+config :mealplan, Mealplan.Repo,
+  migration_primary_key: [type: :binary_id],
+  migration_foreign_key: [type: :binary_id]
 
 # Configure the endpoint
 config :mealplan, MealplanWeb.Endpoint,
