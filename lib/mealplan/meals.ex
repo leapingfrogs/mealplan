@@ -137,6 +137,48 @@ defmodule Mealplan.Meals do
     end
   end
 
+  @doc """
+  Makes `recipe_ids` (the household's active recipes) the meal's recipes, in
+  that order. Recipes it no longer has are taken out as by
+  `remove_recipe/3`, so past plans keep them.
+  """
+  def set_recipes(%Scope{} = scope, meal_id, recipe_ids) when is_list(recipe_ids) do
+    recipe_ids = Enum.uniq(recipe_ids)
+
+    with {:ok, meal} <- fetch_meal(scope, meal_id) do
+      fn -> replace_recipes(scope, meal, recipe_ids) end
+      |> Repo.transact()
+      |> broadcast(scope)
+    end
+  end
+
+  defp replace_recipes(scope, meal, recipe_ids) do
+    :ok =
+      take_out(
+        scope,
+        from(mr in current_recipes(),
+          where: mr.meal_id == ^meal.id and mr.recipe_id not in ^recipe_ids
+        )
+      )
+
+    current =
+      Repo.all(from mr in current_recipes(), where: mr.meal_id == ^meal.id, select: mr.recipe_id)
+
+    with :ok <- add_all(scope, meal, recipe_ids -- current) do
+      :ok = set_positions(recipe_ids, meal)
+      {:ok, meal}
+    end
+  end
+
+  defp add_all(scope, meal, recipe_ids) do
+    Enum.reduce_while(recipe_ids, :ok, fn recipe_id, :ok ->
+      case add_recipe(scope, meal.id, recipe_id) do
+        {:ok, _meal} -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   @doc "Moves a recipe one place earlier or later in a meal."
   def move_recipe(%Scope{} = scope, meal_id, recipe_id, direction)
       when direction in [:up, :down] do

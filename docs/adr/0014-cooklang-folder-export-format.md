@@ -20,7 +20,8 @@ An export is a zip of a Cooklang recipe folder:
   matter setting `title` (the recipe's name) and `servings`. Other metadata
   is kept; `>> title/servings/serves` lines are dropped so they can't override
   the front matter when read back. Names become file names with characters
-  unsafe in file names or Cooklang references replaced, and ` (2)`... for
+  unsafe in file names or Cooklang references replaced (and no `--` or `[`,
+  which would start Cooklang comments in a reference), and ` (2)`... for
   repeats (ignoring case).
 - `meals.menu`: front matter (`source: Mealplan`, `exported`), then a section
   per active meal with its recipes as references (`@./recipes/<name>{}`) in
