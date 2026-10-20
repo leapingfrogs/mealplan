@@ -100,6 +100,8 @@ defmodule MealplanWeb.Router do
       live "/recipes/new", RecipeLive.Form, :new
       live "/recipes/:id", RecipeLive.Show, :show
       live "/recipes/:id/edit", RecipeLive.Form, :edit
+      live "/meals", MealLive.Index, :index
+      live "/meals/:id", MealLive.Show, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password

@@ -109,9 +109,9 @@ takes milliseconds, so there is no derived copy to keep in step.
 
 | Field | Notes |
 |---|---|
-| `meals.name` | Required. A meal may have no recipes ("Eat out") |
+| `meals.name` | Required; unique per household among active meals, ignoring case. A meal may have no recipes ("Eat out") |
 | `meals.archived_at` | The archive rule |
-| `meal_recipes` | `meal_id`, `recipe_id`, `position`; unique pair |
+| `meal_recipes` | `meal_id`, `recipe_id`, `position`; unique pair. Composite keys with `household_id` keep both in one household |
 
 Planning a recipe directly creates a one-recipe meal named after the recipe, or
 reuses it if it exists.
