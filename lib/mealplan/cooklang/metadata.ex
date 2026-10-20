@@ -1,8 +1,10 @@
 defmodule Mealplan.Cooklang.Metadata do
   @moduledoc false
-  # Front matter and `>> key: value` lines. Only the flat subset of YAML is
-  # read (ADR 13): `key: value`, inline lists `[a, b]` and `- item` lists.
-  # Anything else is reported rather than guessed at.
+  # Front matter and `>> key: value` lines. A flat subset of YAML is read
+  # (ADR 13): `key: value` (a plain value may wrap onto indented lines),
+  # block values (`key: |` keeps line breaks, `key: >` folds them), inline
+  # lists `[a, b]` and `- item` lists. Anything else, such as nested maps,
+  # is reported rather than guessed at.
 
   alias Mealplan.Cooklang.Warning
 
@@ -11,34 +13,108 @@ defmodule Mealplan.Cooklang.Metadata do
   @doc "Reads front matter lines (`{text, line_number}`)."
   @spec front_matter([{String.t(), pos_integer()}]) :: {entries(), [Warning.t()]}
   def front_matter(lines) do
-    {entries, _list_key, warnings} =
-      Enum.reduce(lines, {%{}, nil, []}, fn {text, line}, {entries, list_key, warnings} ->
-        read_line(text, line, entries, list_key, warnings)
-      end)
+    state = %{entries: %{}, warnings: [], open: nil}
+
+    %{entries: entries, warnings: warnings} =
+      lines
+      |> Enum.reduce(state, fn {text, line}, state -> read_line(state, text, line) end)
+      |> close()
 
     {entries, Enum.reverse(warnings)}
   end
 
-  defp read_line(text, line, entries, list_key, warnings) do
+  # `open` is what indented lines continue: {:plain, key}, {:list, key} or
+  # {:block, key, :literal | :folded, lines}.
+  defp read_line(state, text, line) do
+    indented? = Regex.match?(~r/\A\s/u, text)
+
     cond do
-      String.trim(text) == "" or String.starts_with?(text, "#") ->
-        {entries, list_key, warnings}
-
-      list_key && Regex.match?(~r/\A\s*-(\s|\z)/u, text) ->
-        item = text |> String.trim() |> String.trim_leading("-") |> unquote_value()
-        {Map.update(entries, list_key, [item], &append(&1, item)), list_key, warnings}
-
-      true ->
-        case entry(text) do
-          {:ok, key, ""} -> {Map.put(entries, key, ""), key, warnings}
-          {:ok, key, value} -> {Map.put(entries, key, value), nil, warnings}
-          :error -> {entries, nil, [unreadable(line) | warnings]}
-        end
+      String.trim(text) == "" -> blank(state)
+      indented? and state.open != nil -> continue(state, String.trim(text), line)
+      String.starts_with?(text, "#") -> state
+      list_item?(text) and match?({:list, _key}, state.open) -> add_item(state, text)
+      true -> state |> close() |> start_entry(text, line)
     end
   end
 
-  defp append(items, item) when is_list(items), do: items ++ [item]
-  defp append(_empty, item), do: [item]
+  # Blank lines separate paragraphs in a block value; elsewhere they're ignored.
+  defp blank(%{open: {:block, key, style, lines}} = state),
+    do: %{state | open: {:block, key, style, ["" | lines]}}
+
+  defp blank(state), do: state
+
+  defp continue(%{open: {:block, key, style, lines}} = state, text, _line),
+    do: %{state | open: {:block, key, style, [text | lines]}}
+
+  defp continue(%{open: {:plain, key}} = state, text, _line) do
+    put_in(state, [:entries, key], "#{state.entries[key]} #{text}")
+  end
+
+  defp continue(%{open: {:list, key}} = state, text, line) do
+    cond do
+      list_item?(text) ->
+        add_item(state, text)
+
+      # An indented line after an item continues it.
+      is_list(state.entries[key]) ->
+        {last, items} = List.pop_at(state.entries[key], -1)
+        put_in(state, [:entries, key], items ++ ["#{last} #{text}"])
+
+      true ->
+        %{state | warnings: [unreadable(line) | state.warnings]}
+    end
+  end
+
+  defp list_item?(text), do: Regex.match?(~r/\A\s*-(\s|\z)/u, text)
+
+  defp add_item(%{open: {:list, key}} = state, text) do
+    item = text |> String.trim() |> String.trim_leading("-") |> unquote_value()
+
+    items =
+      case state.entries[key] do
+        items when is_list(items) -> items ++ [item]
+        _empty -> [item]
+      end
+
+    put_in(state, [:entries, key], items)
+  end
+
+  defp start_entry(state, text, line) do
+    case entry(text) do
+      {:ok, key, ""} ->
+        %{state | entries: Map.put(state.entries, key, ""), open: {:list, key}}
+
+      {:ok, key, indicator} when indicator in ["|", "|-", "|+", ">", ">-", ">+"] ->
+        style = if String.starts_with?(indicator, "|"), do: :literal, else: :folded
+        %{state | entries: Map.put(state.entries, key, ""), open: {:block, key, style, []}}
+
+      {:ok, key, value} when is_binary(value) ->
+        %{state | entries: Map.put(state.entries, key, value), open: {:plain, key}}
+
+      {:ok, key, list} ->
+        %{state | entries: Map.put(state.entries, key, list), open: nil}
+
+      :error ->
+        %{state | warnings: [unreadable(line) | state.warnings], open: nil}
+    end
+  end
+
+  defp close(%{open: {:block, key, style, lines}} = state) do
+    # Lines were collected newest first; trailing blank lines are dropped.
+    lines = lines |> Enum.drop_while(&(&1 == "")) |> Enum.reverse()
+    value = if style == :literal, do: Enum.join(lines, "\n"), else: fold(lines)
+    %{state | entries: Map.put(state.entries, key, value), open: nil}
+  end
+
+  defp close(state), do: %{state | open: nil}
+
+  # Folded: lines join with spaces; a blank line becomes a line break.
+  defp fold(lines) do
+    lines
+    |> Enum.chunk_by(&(&1 == ""))
+    |> Enum.reject(&(hd(&1) == ""))
+    |> Enum.map_join("\n", &Enum.join(&1, " "))
+  end
 
   @doc "Reads one `key: value` entry (also used for `>>` lines)."
   @spec entry(String.t()) :: {:ok, String.t(), String.t() | [String.t()]} | :error

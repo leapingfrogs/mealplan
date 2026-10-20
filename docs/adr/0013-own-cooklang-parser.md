@@ -36,7 +36,9 @@ Unicode-aware regular expressions), with no runtime dependency.
 - `cooklang-rs`'s extensions (references to other recipes, ranges, unit
   conversion syntax and so on) are out of scope.
 - For front-matter metadata we accept the flat `key: value` subset that the
-  spec tests use. Anything else becomes a warning rather than an error. We
+  spec tests use, plus what Cooklang tools commonly write: values wrapped
+  onto indented lines, block values (`|`, `>`) and `- item` lists. Anything
+  else, such as nested maps, becomes a warning rather than an error. We
   don't parse full YAML from user input at runtime.
 - The parser is a pure function from text to a result with warnings. It never
   raises on any input; property tests check this.
