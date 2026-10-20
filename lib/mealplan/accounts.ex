@@ -321,6 +321,43 @@ defmodule Mealplan.Accounts do
   end
 
   @doc """
+  Returns the account for `email`, creating an unconfirmed one if there is
+  none (used for household invitations). Safe against a concurrent create.
+  """
+  def get_or_create_user_by_email(email) when is_binary(email) do
+    case get_user_by_email(email) do
+      %User{} = user ->
+        {:ok, user}
+
+      nil ->
+        case register_user(%{email: email}) do
+          {:ok, user} -> {:ok, user}
+          {:error, changeset} -> retry_after_race(email, changeset)
+        end
+    end
+  end
+
+  defp retry_after_race(email, changeset) do
+    case get_user_by_email(email) do
+      %User{} = user -> {:ok, user}
+      nil -> {:error, changeset}
+    end
+  end
+
+  @doc """
+  Emails `user` an invitation to join a household, with a magic login link.
+
+  `details` has `:household_name`, `:inviter_email`, `:expires_at` and
+  `:login_url` (where to ask for a fresh link once this one has expired).
+  """
+  def deliver_household_invitation(%User{} = user, details, magic_link_url_fun)
+      when is_function(magic_link_url_fun, 1) do
+    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
+    Repo.insert!(user_token)
+    UserNotifier.deliver_household_invitation(user, magic_link_url_fun.(encoded_token), details)
+  end
+
+  @doc """
   Deletes the signed token with the given context.
   """
   def delete_user_session_token(token) do
