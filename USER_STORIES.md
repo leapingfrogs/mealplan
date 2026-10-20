@@ -85,7 +85,7 @@ All members of a household can create and edit recipes, meals and plans; managin
 
 A household has a "usually feeding" number of people, asked for when it is created and editable by the owner. A planned meal records how many servings it is for, defaulting to that number; the shopping list scales ingredient quantities to the planned servings.
 
-As a user planning a week I am able to mark a planned meal, or one recipe within it, as leftovers from an earlier planned meal that week, with its own number of servings. The earlier meal is then cooked for its planned servings plus all leftover servings taken from it, and the shopping list scales its ingredients to that total (for a recipe that serves 4: planned for 4 with 2 leftover servings means cooking 6; planned for 2 with 2 leftover servings means cooking the recipe's 4). Leftovers themselves add nothing else to the shopping list.
+As a user planning a week I am able to mark a planned meal, or one recipe within it, as leftovers from an earlier planned meal up to 14 days before (so a batch cooked or frozen at the weekend can feed meals the following week), with its own number of servings. One cooked meal can feed several later meals. The earlier meal is then cooked for its planned servings plus all leftover servings taken from it, and the shopping list scales its ingredients to that total (for a recipe that serves 4: planned for 4 with 2 leftover servings means cooking 6; planned for 2 with 2 leftover servings means cooking the recipe's 4). Leftovers themselves add nothing else to the shopping list.
 
 A meal may have no recipes (for example "Eat out" or "Leftovers"), and a single recipe can be planned directly, which creates a meal containing just that recipe.
 

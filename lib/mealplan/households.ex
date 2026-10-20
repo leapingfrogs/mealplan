@@ -222,14 +222,27 @@ defmodule Mealplan.Households do
 
   @doc """
   Deletes a meal slot. Owner only, and a household keeps at least one slot.
+  A slot with planned meals is refused with `{:error, :in_use}` (archiving
+  it instead is a later task).
   """
   def delete_meal_slot(%Scope{household: %Household{id: household_id}} = scope, slot_id) do
     change_slots(scope, fn ->
       with {:ok, slot} <- fetch_meal_slot(scope, slot_id),
            :ok <- ensure_another_slot(household_id) do
-        Repo.delete(slot)
+        delete_unused_slot(slot)
       end
     end)
+  end
+
+  defp delete_unused_slot(slot) do
+    slot
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.foreign_key_constraint(:id, name: :planned_meals_meal_slot_id_fkey)
+    |> Repo.delete()
+    |> case do
+      {:ok, slot} -> {:ok, slot}
+      {:error, _changeset} -> {:error, :in_use}
+    end
   end
 
   @doc """

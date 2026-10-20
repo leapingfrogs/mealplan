@@ -135,7 +135,7 @@ its recipes.
 |---|---|
 | `planned_meal_id` | The later meal that eats leftovers |
 | `recipe_id` | Which recipe in it is leftovers |
-| `source_planned_meal_id` | The earlier planned meal that is cooked bigger. Must be earlier (date, then slot position) and contain the same recipe |
+| `source_planned_meal_id` | The earlier planned meal that is cooked bigger. Must be earlier (date, then slot position), at most 14 days before, and contain the same recipe; it may be in an earlier week |
 
 ### slot_skips (new)
 
@@ -162,6 +162,14 @@ chilli recipe that serves 4:
 |---|---|---|---|
 | 4 | 2 | 6 | ×1.5 |
 | 2 | 2 | 4 | ×1 |
+
+Leftovers come from a meal that cooks the recipe fresh, up to 14 days before
+(long enough for something frozen at the weekend to feed the following week),
+and one cooked meal can feed several later ones. A recipe eaten as leftovers
+can't be the source of further leftovers. Moving or changing either meal
+removes leftover links that no longer hold (earlier, within 14 days, both
+meals contain the recipe); removing either meal removes them too. The extra
+servings are cooked, and shopped for, in the source's week.
 
 A leftover can cover one recipe of a meal while the rest is fresh:
 
@@ -222,7 +230,7 @@ reviewed; their content:
   meals show as chips with servings; leftovers are marked ↺. Unplanned slots
   show "+ Add" and "Skip". Tap a meal to edit, move or remove it.
 - **Add to a slot** (bottom sheet): "New meal" searches meals and recipes;
-  "Leftovers" lists recipes planned earlier in the week, showing what the
+  "Leftovers" lists recipes planned in the previous 14 days, showing what the
   source meal will be cooked for. Servings stepper starting at the household's
   usual number.
 - **Recipe list** (`/recipes`): search by name or ingredient; serving size and
