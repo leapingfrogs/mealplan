@@ -314,3 +314,27 @@ All confirmed on 20 October 2026.
    changeable and are removed when their meal is deleted.
 8. **Invitations go by email even to existing accounts**, with an in-app
    banner; nobody changes household without accepting.
+
+## Changes made while building
+
+The sections above are updated in place; this lists what differs from the
+design as reviewed, for anyone comparing.
+
+- **Invitation links** for new accounts last the invitation's 7 days, not 15
+  minutes (still single use); existing accounts keep the short link.
+- **The Cooklang parser** is hand-written rather than NimbleParsec (ADR 13,
+  amended).
+- **No `recipes.parsed` column:** pages parse the source when they render it.
+- **Meal names are unique** per household among active meals, and planning a
+  recipe directly names a new meal "Name (2)" if the recipe's name is taken.
+- **Leftovers** may come from up to 14 days before, across weeks, so weekend
+  batch cooking or freezing feeds the next week. There are no leftovers of
+  leftovers, and moving or changing a meal drops links that no longer hold
+  (with a confirmation). The Leftovers tab lists a repeated meal once.
+- **Copying last week** never overwrites; copied leftover links point at the
+  copy of their source or this week's matching meal, else the meal is cooked
+  fresh.
+- **Meal history:** `meal_recipes.removed_on` keeps what past planned meals
+  contained after recipes are taken out of meals or archived.
+- **Deleting a slot** with upcoming meals asks whether to move or remove them;
+  archived slots still show in past weeks.
