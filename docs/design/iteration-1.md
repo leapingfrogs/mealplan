@@ -240,7 +240,7 @@ reviewed; their content:
 |---|---|---|
 | `Households` | households, invitations, membership, ownership, slots | Owner-only operations check `scope.household.owner_id`; creating a household seeds the default slots |
 | `Recipes` | recipes, recipe_ingredients, archive/restore | Calls `Mealplan.Cooklang` on save |
-| `Cooklang` | parser only, no database | NimbleParsec; pure functions from source to steps, ingredients, cookware, timers, metadata and warnings |
+| `Cooklang` | parser only, no database | Hand-written (ADR 13); pure functions from source to steps, ingredients, cookware, timers, metadata and warnings |
 | `Meals` | meals, meal_recipes, archive/restore | |
 | `Planning` | planned_meals, leftovers, slot_skips, week status | Owns the servings maths, which the shopping list reuses |
 
@@ -273,7 +273,7 @@ All confirmed on 20 October 2026.
    adjusted.
 4. **Households have a time zone** for "today" and the current week, set from
    the browser at creation and editable by the owner.
-5. **Write our own Cooklang parser** with NimbleParsec, tested against
+5. **Write our own Cooklang parser**, tested against
    Cooklang's official spec tests. Hex had no maintained pure-Elixir parser
    ([ADR 13](../adr/0013-own-cooklang-parser.md)).
 6. **Store parsed ingredients as rows**, so the shopping list merges and scales

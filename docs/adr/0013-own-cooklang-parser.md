@@ -1,4 +1,4 @@
-# 13. Write our own Cooklang parser with NimbleParsec
+# 13. Write our own Cooklang parser
 
 - Status: accepted
 - Date: 2026-10-20
@@ -25,16 +25,14 @@ Before writing one we checked for an existing Elixir parser (October 2026):
 
 ## Decision
 
-Write `Mealplan.Cooklang` ourselves with
-[NimbleParsec](https://hex.pm/packages/nimble_parsec). NimbleParsec is
-maintained by Dashbit and generates plain Elixir binary-matching code at
-compile time, so it needs no runtime dependency.
+Write `Mealplan.Cooklang` ourselves, in plain Elixir (binary matching and
+Unicode-aware regular expressions), with no runtime dependency.
 
 - Target the base Cooklang specification (version 8). It must pass the spec's
   canonical tests, which are vendored unchanged in
   `test/support/fixtures/cooklang/` and pinned to a spec commit. They are read
   with `yaml_elixir`, which is already locked through `mix_audit`; we add it as
-  a test-only dependency.
+  a test-only dependency, with `stream_data` for the property tests.
 - `cooklang-rs`'s extensions (references to other recipes, ranges, unit
   conversion syntax and so on) are out of scope.
 - For front-matter metadata we accept the flat `key: value` subset that the
@@ -56,3 +54,14 @@ compile time, so it needs no runtime dependency.
   the design already covers in our own code.
 - If a maintained, pure-Elixir parser appears, this decision should be
   revisited.
+
+## Amendment (2026-10-20, while implementing)
+
+This record first chose [NimbleParsec](https://hex.pm/packages/nimble_parsec).
+While writing the parser, a hand-written one proved simpler. Cooklang is
+line-based: paragraphs, comments, front matter, sections and notes are
+handled line by line. Within a line, the spec tests end a one-word name at
+any Unicode whitespace or punctuation (for example U+2009 and `⸫`).
+NimbleParsec matches character ranges, not Unicode categories, so it would
+have needed workarounds that rewrite its input. The other decisions are
+unchanged.

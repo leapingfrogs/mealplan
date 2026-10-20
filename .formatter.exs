@@ -1,5 +1,5 @@
 [
-  import_deps: [:ecto, :ecto_sql, :phoenix, :error_tracker],
+  import_deps: [:ecto, :ecto_sql, :phoenix, :error_tracker, :stream_data],
   subdirectories: ["priv/*/migrations"],
   plugins: [Phoenix.LiveView.HTMLFormatter, Styler],
   # Styler otherwise defaults to 122; keep the Elixir formatter default.
