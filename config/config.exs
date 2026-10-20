@@ -78,6 +78,13 @@ config :mealplan,
   ecto_repos: [Mealplan.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
+# Cooklang recipes and menus, so uploads can accept them (`mix deps.compile
+# mime --force` after changing this).
+config :mime, :types, %{
+  "text/x-cooklang" => ["cook"],
+  "text/x-cooklang-menu" => ["menu"]
+}
+
 # Keep secrets and magic-link tokens out of request logs.
 config :phoenix, :filter_parameters, ["password", "token"]
 
