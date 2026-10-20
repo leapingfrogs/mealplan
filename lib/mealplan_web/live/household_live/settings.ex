@@ -1,13 +1,14 @@
 defmodule MealplanWeb.HouseholdLive.Settings do
   @moduledoc """
-  The household page: the owner edits the household's details; members see
-  them read-only. Members, invitations and meal slots are added here by later
-  tasks.
+  The household page. The owner edits the details and meal slots, manages
+  members and invitations, and can delete the household; members see it
+  read-only and can leave.
   """
   use MealplanWeb, :live_view
 
   alias Mealplan.Households
   alias Mealplan.Households.Invitation
+  alias Mealplan.Households.MealSlot
 
   @impl true
   def render(assigns) do
@@ -89,6 +90,166 @@ defmodule MealplanWeb.HouseholdLive.Settings do
           <dd id="time-zone">{@current_scope.household.time_zone}</dd>
         </div>
       </dl>
+
+      <section id="meal-slots-section" class="space-y-3 pt-4">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-lg font-semibold">Meal slots</h2>
+          <button
+            :if={@owner? and @missing_defaults != []}
+            type="button"
+            id="restore-default-slots"
+            class="btn btn-ghost btn-sm"
+            phx-click="restore_slots"
+          >
+            <.icon name="hero-arrow-path" class="size-4" /> Restore defaults
+          </button>
+        </div>
+        <p class="text-sm text-base-content/60">
+          The times of day you plan meals for, in order.
+          <span :if={@owner?} class="hidden sm:inline">Drag to reorder.</span>
+        </p>
+        <ol
+          id="meal-slots"
+          phx-hook=".SortableSlots"
+          data-sortable={to_string(@owner? and is_nil(@editing_slot_id))}
+          class="divide-y divide-base-300 rounded-box border border-base-300"
+        >
+          <li
+            :for={{slot, index} <- Enum.with_index(@meal_slots)}
+            id={"slot-#{slot.id}"}
+            data-id={slot.id}
+            draggable={if @owner? and is_nil(@editing_slot_id), do: "true"}
+            class={[
+              "flex items-center gap-2 px-4 py-2 min-h-12 transition-colors",
+              @owner? && "hover:bg-base-200/60"
+            ]}
+          >
+            <%= if @editing_slot_id == slot.id do %>
+              <.form
+                for={@slot_form}
+                id="rename-slot-form"
+                phx-change="validate_slot"
+                phx-submit="rename_slot"
+                class="flex flex-1 flex-wrap items-start gap-2"
+              >
+                <input type="hidden" name="slot_id" value={slot.id} />
+                <div class="flex-1 min-w-40">
+                  <.input
+                    field={@slot_form[:name]}
+                    aria-label="Meal slot name"
+                    autocomplete="off"
+                    phx-mounted={JS.focus()}
+                  />
+                </div>
+                <.button variant="primary" phx-disable-with="Saving...">Save</.button>
+                <button type="button" class="btn btn-ghost" phx-click="cancel_rename">
+                  Cancel
+                </button>
+              </.form>
+            <% else %>
+              <.icon
+                :if={@owner?}
+                name="hero-bars-2"
+                class="hidden sm:block size-5 shrink-0 cursor-grab text-base-content/40"
+              />
+              <span class="flex-1 min-w-0 truncate">{slot.name}</span>
+              <span :if={@owner?} class="flex shrink-0 items-center">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm btn-square"
+                  phx-click="move_slot"
+                  phx-value-id={slot.id}
+                  phx-value-direction="up"
+                  disabled={index == 0}
+                  aria-label={"Move #{slot.name} earlier"}
+                >
+                  <.icon name="hero-chevron-up" class="size-4" />
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm btn-square"
+                  phx-click="move_slot"
+                  phx-value-id={slot.id}
+                  phx-value-direction="down"
+                  disabled={index == length(@meal_slots) - 1}
+                  aria-label={"Move #{slot.name} later"}
+                >
+                  <.icon name="hero-chevron-down" class="size-4" />
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  phx-click="edit_slot"
+                  phx-value-id={slot.id}
+                >
+                  Rename
+                </button>
+                <button
+                  :if={length(@meal_slots) > 1}
+                  type="button"
+                  class="btn btn-ghost btn-sm text-error"
+                  phx-click="delete_slot"
+                  phx-value-id={slot.id}
+                  data-confirm={"Delete the #{slot.name} slot?"}
+                >
+                  Delete
+                </button>
+              </span>
+            <% end %>
+          </li>
+        </ol>
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".SortableSlots">
+          // Drag and drop reordering for the owner; phones use the up/down buttons.
+          export default {
+            mounted() {
+              let dragged = null
+              const rows = () => [...this.el.querySelectorAll("li[data-id]")]
+
+              this.el.addEventListener("dragstart", e => {
+                if (this.el.dataset.sortable !== "true") return
+                dragged = e.target.closest("li[data-id]")
+                if (!dragged) return
+                e.dataTransfer.effectAllowed = "move"
+                dragged.classList.add("opacity-50")
+              })
+              this.el.addEventListener("dragover", e => {
+                if (!dragged) return
+                e.preventDefault()
+                const over = e.target.closest("li[data-id]")
+                if (!over || over === dragged) return
+                const box = over.getBoundingClientRect()
+                const after = e.clientY > box.top + box.height / 2
+                this.el.insertBefore(dragged, after ? over.nextSibling : over)
+              })
+              this.el.addEventListener("drop", e => e.preventDefault())
+              this.el.addEventListener("dragend", () => {
+                if (!dragged) return
+                dragged.classList.remove("opacity-50")
+                dragged = null
+                this.pushEvent("reorder_slots", {ids: rows().map(li => li.dataset.id)})
+              })
+            }
+          }
+        </script>
+        <.form
+          :if={@owner?}
+          for={@new_slot_form}
+          id="new-slot-form"
+          phx-change="validate_new_slot"
+          phx-submit="create_slot"
+          class="flex flex-wrap items-start gap-2"
+        >
+          <div class="flex-1 min-w-48">
+            <.input
+              field={@new_slot_form[:name]}
+              placeholder="Add a slot, e.g. Elevenses"
+              aria-label="New meal slot name"
+              autocomplete="off"
+            />
+          </div>
+          <.button variant="primary" phx-disable-with="Adding...">Add</.button>
+        </.form>
+      </section>
 
       <section class="space-y-3 pt-4">
         <h2 class="text-lg font-semibold">Members</h2>
@@ -259,6 +420,8 @@ defmodule MealplanWeb.HouseholdLive.Settings do
      socket
      |> assign(page_title: "Household", owner?: Households.owner?(scope))
      |> assign(invite_form: to_form(Households.change_invitation()))
+     |> assign(editing_slot_id: nil, slot_form: nil)
+     |> assign_new_slot_form(Households.change_meal_slot())
      |> assign_lists()
      |> assign_form(Households.change_household(scope.household))}
   end
@@ -269,7 +432,11 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     pending =
       if socket.assigns.owner?, do: Households.list_pending_invitations(scope), else: []
 
+    meal_slots = Households.list_meal_slots(scope)
+
     assign(socket,
+      meal_slots: meal_slots,
+      missing_defaults: MealSlot.missing_defaults(meal_slots),
       members: Households.list_members(scope),
       pending_invitations: pending,
       my_invitations: Households.list_invitations_for_user(scope)
@@ -357,6 +524,119 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     {:noreply, socket |> put_flash(:info, "Invitation declined.") |> assign_lists()}
   end
 
+  def handle_event("validate_new_slot", %{"new_slot" => params}, socket) do
+    changeset = Households.change_meal_slot(%MealSlot{}, params)
+    {:noreply, assign_new_slot_form(socket, Map.put(changeset, :action, :validate))}
+  end
+
+  def handle_event("create_slot", %{"new_slot" => params}, socket) do
+    case Households.create_meal_slot(socket.assigns.current_scope, params) do
+      {:ok, slot} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{slot.name} added.")
+         |> assign_new_slot_form(Households.change_meal_slot())
+         |> assign_lists()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign_new_slot_form(socket, changeset)}
+
+      {:error, _reason} ->
+        {:noreply, slot_error(socket)}
+    end
+  end
+
+  def handle_event("edit_slot", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.meal_slots, &(&1.id == id)) do
+      %MealSlot{} = slot ->
+        {:noreply,
+         assign(socket,
+           editing_slot_id: slot.id,
+           slot_form: to_form(Households.change_meal_slot(slot), as: :slot)
+         )}
+
+      nil ->
+        {:noreply, assign_lists(socket)}
+    end
+  end
+
+  def handle_event("cancel_rename", _params, socket) do
+    {:noreply, assign(socket, editing_slot_id: nil, slot_form: nil)}
+  end
+
+  def handle_event("validate_slot", %{"slot_id" => id, "slot" => params}, socket) do
+    case Enum.find(socket.assigns.meal_slots, &(&1.id == id)) do
+      %MealSlot{} = slot ->
+        changeset = slot |> Households.change_meal_slot(params) |> Map.put(:action, :validate)
+        {:noreply, assign(socket, slot_form: to_form(changeset, as: :slot))}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("rename_slot", %{"slot_id" => id, "slot" => params}, socket) do
+    case Households.rename_meal_slot(socket.assigns.current_scope, id, params) do
+      {:ok, slot} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Renamed to #{slot.name}.")
+         |> assign(editing_slot_id: nil, slot_form: nil)
+         |> assign_lists()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, slot_form: to_form(changeset, as: :slot))}
+
+      {:error, _reason} ->
+        {:noreply, socket |> assign(editing_slot_id: nil, slot_form: nil) |> slot_error()}
+    end
+  end
+
+  def handle_event("delete_slot", %{"id" => id}, socket) do
+    case Households.delete_meal_slot(socket.assigns.current_scope, id) do
+      {:ok, slot} ->
+        {:noreply, socket |> put_flash(:info, "#{slot.name} deleted.") |> assign_lists()}
+
+      {:error, :last_slot} ->
+        {:noreply, put_flash(socket, :error, "A household needs at least one meal slot.")}
+
+      {:error, _reason} ->
+        {:noreply, slot_error(socket)}
+    end
+  end
+
+  def handle_event("move_slot", %{"id" => id, "direction" => direction}, socket) do
+    direction = if direction == "up", do: :up, else: :down
+
+    case Households.move_meal_slot(socket.assigns.current_scope, id, direction) do
+      {:ok, _ids} -> {:noreply, assign_lists(socket)}
+      {:error, _reason} -> {:noreply, slot_error(socket)}
+    end
+  end
+
+  def handle_event("reorder_slots", %{"ids" => ids}, socket) when is_list(ids) do
+    case Households.reorder_meal_slots(socket.assigns.current_scope, ids) do
+      {:ok, _ids} -> {:noreply, assign_lists(socket)}
+      {:error, _reason} -> {:noreply, slot_error(socket)}
+    end
+  end
+
+  def handle_event("restore_slots", _params, socket) do
+    case Households.restore_default_meal_slots(socket.assigns.current_scope) do
+      {:ok, count} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           "Restored #{count} default #{if count == 1, do: "slot", else: "slots"}."
+         )
+         |> assign_lists()}
+
+      {:error, _reason} ->
+        {:noreply, slot_error(socket)}
+    end
+  end
+
   def handle_event("remove", %{"id" => id}, socket) do
     case Households.remove_member(socket.assigns.current_scope, id) do
       :ok ->
@@ -438,6 +718,17 @@ defmodule MealplanWeb.HouseholdLive.Settings do
   def handle_info(_message, socket), do: {:noreply, socket}
 
   defp assign_form(socket, changeset), do: assign(socket, form: to_form(changeset))
+
+  defp assign_new_slot_form(socket, changeset),
+    do: assign(socket, new_slot_form: to_form(changeset, as: :new_slot))
+
+  # Not the owner any more, or the slots changed on another device: show the
+  # current list rather than guess.
+  defp slot_error(socket) do
+    socket
+    |> put_flash(:error, "Couldn't change the meal slots; they may have just changed elsewhere.")
+    |> assign_lists()
+  end
 
   defp expires_in(expires_at) do
     case DateTime.diff(expires_at, DateTime.utc_now(), :day) do

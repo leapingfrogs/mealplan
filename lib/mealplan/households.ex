@@ -181,13 +181,178 @@ defmodule Mealplan.Households do
     end)
   end
 
+  ## Meal slots
+
   @doc "Lists the household's active meal slots in day order."
   def list_meal_slots(%Scope{household: %Household{id: household_id}}) do
     Repo.all(
-      from s in MealSlot,
-        where: s.household_id == ^household_id and is_nil(s.archived_at),
+      from s in active_slots(household_id),
         order_by: [asc: s.position, asc: s.inserted_at]
     )
+  end
+
+  @doc "Returns a changeset for a meal slot's name form."
+  def change_meal_slot(%MealSlot{} = slot \\ %MealSlot{}, attrs \\ %{}),
+    do: MealSlot.changeset(slot, attrs)
+
+  @doc """
+  Adds a custom meal slot at the end of the day. Owner only.
+
+  Like every slot change below, members' open pages receive
+  `{:household_changed, :meal_slots}`.
+  """
+  def create_meal_slot(%Scope{household: %Household{id: household_id}} = scope, attrs) do
+    change_slots(scope, fn ->
+      last = Repo.one(from s in active_slots(household_id), select: max(s.position))
+
+      %MealSlot{household_id: household_id, position: (last || -1) + 1}
+      |> MealSlot.changeset(attrs)
+      |> Repo.insert()
+    end)
+  end
+
+  @doc "Renames a meal slot; anything planned in it stays there. Owner only."
+  def rename_meal_slot(%Scope{} = scope, slot_id, attrs) do
+    change_slots(scope, fn ->
+      with {:ok, slot} <- fetch_meal_slot(scope, slot_id) do
+        slot |> MealSlot.changeset(attrs) |> Repo.update()
+      end
+    end)
+  end
+
+  @doc """
+  Deletes a meal slot. Owner only, and a household keeps at least one slot.
+  """
+  def delete_meal_slot(%Scope{household: %Household{id: household_id}} = scope, slot_id) do
+    change_slots(scope, fn ->
+      with {:ok, slot} <- fetch_meal_slot(scope, slot_id),
+           :ok <- ensure_another_slot(household_id) do
+        Repo.delete(slot)
+      end
+    end)
+  end
+
+  @doc """
+  Puts the household's slots in the order of `slot_ids`, which must list
+  every active slot exactly once. Owner only.
+  """
+  def reorder_meal_slots(%Scope{} = scope, slot_ids) when is_list(slot_ids) do
+    change_slots(scope, fn ->
+      current = scope |> list_meal_slots() |> Enum.map(& &1.id)
+
+      if Enum.sort(current) == Enum.sort(slot_ids) do
+        set_positions(scope, slot_ids)
+      else
+        {:error, :stale}
+      end
+    end)
+  end
+
+  @doc "Moves a meal slot one place earlier or later in the day. Owner only."
+  def move_meal_slot(%Scope{} = scope, slot_id, direction) when direction in [:up, :down] do
+    ids = scope |> list_meal_slots() |> Enum.map(& &1.id)
+    index = Enum.find_index(ids, &(&1 == slot_id))
+    other = if direction == :up, do: index && index - 1, else: index && index + 1
+
+    if index && other in 0..(length(ids) - 1)//1 do
+      ids
+      |> List.replace_at(index, Enum.at(ids, other))
+      |> List.replace_at(other, slot_id)
+      |> then(&reorder_meal_slots(scope, &1))
+    else
+      {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Re-creates any of the default slots (Breakfast, Lunch, Dinner, Snack) that
+  are missing, leaving custom slots alone. A default whose name a custom slot
+  already uses counts as present. Owner only. Returns how many were restored.
+  """
+  def restore_default_meal_slots(%Scope{household: %Household{id: household_id}} = scope) do
+    change_slots(scope, fn ->
+      slots = list_meal_slots(scope)
+      missing = MealSlot.missing_defaults(slots)
+
+      ordered =
+        Enum.reduce(missing, slots, fn {key, name}, acc ->
+          slot =
+            Repo.insert!(%MealSlot{
+              household_id: household_id,
+              name: name,
+              default_key: key,
+              position: 0
+            })
+
+          place_default(acc, slot)
+        end)
+
+      with {:ok, _ids} <- set_positions(scope, Enum.map(ordered, & &1.id)) do
+        {:ok, length(missing)}
+      end
+    end)
+  end
+
+  # A restored default goes after the last slot holding an earlier default
+  # (Lunch after Breakfast), or first in the day if there is none.
+  defp place_default(slots, %MealSlot{default_key: key} = slot) do
+    earlier =
+      MealSlot.defaults() |> Enum.map(&elem(&1, 0)) |> Enum.take_while(&(&1 != key))
+
+    index =
+      slots
+      |> Enum.with_index()
+      |> Enum.filter(fn {s, _index} -> s.default_key in earlier end)
+      |> Enum.map(fn {_slot, index} -> index end)
+      |> Enum.max(fn -> -1 end)
+
+    List.insert_at(slots, index + 1, slot)
+  end
+
+  defp change_slots(scope, fun) do
+    if owner?(scope) do
+      with {:ok, result} <- Repo.transact(fun) do
+        :ok = broadcast(scope, {:household_changed, :meal_slots})
+        {:ok, result}
+      end
+    else
+      {:error, :unauthorized}
+    end
+  end
+
+  defp ensure_another_slot(household_id) do
+    if Repo.aggregate(active_slots(household_id), :count) > 1, do: :ok, else: {:error, :last_slot}
+  end
+
+  defp fetch_meal_slot(%Scope{household: %Household{id: household_id}}, slot_id) do
+    with {:ok, slot_id} <- Ecto.UUID.cast(slot_id),
+         %MealSlot{} = slot <- Repo.get_by(active_slots(household_id), id: slot_id) do
+      {:ok, slot}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp set_positions(%Scope{household: %Household{id: household_id}}, slot_ids) do
+    updated =
+      slot_ids
+      |> Enum.with_index()
+      |> Enum.map(fn {id, position} ->
+        {count, _} =
+          Repo.update_all(from(s in active_slots(household_id), where: s.id == ^id),
+            set: [position: position]
+          )
+
+        count
+      end)
+      |> Enum.sum()
+
+    # A slot deleted meanwhile; the transaction rolls back.
+    if updated == length(slot_ids), do: {:ok, slot_ids}, else: {:error, :stale}
+  end
+
+  defp active_slots(household_id) do
+    from s in MealSlot, where: s.household_id == ^household_id and is_nil(s.archived_at)
   end
 
   ## Invitations

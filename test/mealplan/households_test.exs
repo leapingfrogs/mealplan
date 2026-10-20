@@ -552,6 +552,134 @@ defmodule Mealplan.HouseholdsTest do
     end
   end
 
+  describe "managing meal slots" do
+    setup do
+      %{scope: owner_scope, household: household} = household_fixture()
+      %{scope: member_scope} = member_fixture(household)
+      :ok = Households.subscribe(owner_scope)
+      %{owner_scope: owner_scope, member_scope: member_scope}
+    end
+
+    defp slot_names(scope), do: scope |> Households.list_meal_slots() |> Enum.map(& &1.name)
+
+    defp slot_named(scope, name),
+      do: Enum.find(Households.list_meal_slots(scope), &(&1.name == name))
+
+    test "the owner adds a custom slot at the end of the day", %{owner_scope: scope} do
+      assert {:ok, %MealSlot{name: "Elevenses", default_key: nil}} =
+               Households.create_meal_slot(scope, %{name: "  Elevenses "})
+
+      assert slot_names(scope) == ~w(Breakfast Lunch Dinner Snack Elevenses)
+      assert_receive {:household_changed, :meal_slots}
+    end
+
+    test "names are required and unique, ignoring case", %{owner_scope: scope} do
+      assert {:error, changeset} = Households.create_meal_slot(scope, %{name: " "})
+      assert "can't be blank" in errors_on(changeset).name
+
+      assert {:error, changeset} = Households.create_meal_slot(scope, %{name: "lunch"})
+      assert "is already a meal slot" in errors_on(changeset).name
+
+      lunch = slot_named(scope, "Lunch")
+      assert {:error, changeset} = Households.rename_meal_slot(scope, lunch.id, %{name: "DINNER"})
+      assert "is already a meal slot" in errors_on(changeset).name
+    end
+
+    test "the owner renames a slot, which keeps its place and default", %{owner_scope: scope} do
+      lunch = slot_named(scope, "Lunch")
+
+      assert {:ok, %MealSlot{name: "Midday", default_key: "lunch"}} =
+               Households.rename_meal_slot(scope, lunch.id, %{name: "Midday"})
+
+      assert slot_names(scope) == ~w(Breakfast Midday Dinner Snack)
+    end
+
+    test "the owner reorders slots", %{owner_scope: scope} do
+      ids = scope |> Households.list_meal_slots() |> Enum.map(& &1.id)
+      reversed = Enum.reverse(ids)
+
+      assert {:ok, ^reversed} = Households.reorder_meal_slots(scope, reversed)
+      assert slot_names(scope) == ~w(Snack Dinner Lunch Breakfast)
+
+      assert Households.reorder_meal_slots(scope, Enum.drop(ids, 1)) == {:error, :stale}
+      assert Households.reorder_meal_slots(scope, ids ++ [hd(ids)]) == {:error, :stale}
+      assert slot_names(scope) == ~w(Snack Dinner Lunch Breakfast)
+    end
+
+    test "the owner moves a slot up or down", %{owner_scope: scope} do
+      snack = slot_named(scope, "Snack")
+      breakfast = slot_named(scope, "Breakfast")
+
+      assert {:ok, _} = Households.move_meal_slot(scope, snack.id, :up)
+      assert slot_names(scope) == ~w(Breakfast Lunch Snack Dinner)
+
+      assert Households.move_meal_slot(scope, breakfast.id, :up) == {:error, :not_found}
+      assert Households.move_meal_slot(scope, Ecto.UUID.generate(), :down) == {:error, :not_found}
+    end
+
+    test "the owner deletes a slot but never the last one", %{owner_scope: scope} do
+      [first | rest] = Households.list_meal_slots(scope)
+
+      for slot <- rest, do: assert({:ok, _} = Households.delete_meal_slot(scope, slot.id))
+
+      assert Households.delete_meal_slot(scope, first.id) == {:error, :last_slot}
+      assert Households.delete_meal_slot(scope, "not-a-uuid") == {:error, :not_found}
+      assert slot_names(scope) == ["Breakfast"]
+    end
+
+    test "restoring defaults re-creates missing ones in place, leaving custom slots alone",
+         %{owner_scope: scope} do
+      {:ok, _} = Households.create_meal_slot(scope, %{name: "Supper"})
+      {:ok, _} = Households.delete_meal_slot(scope, slot_named(scope, "Breakfast").id)
+      {:ok, _} = Households.delete_meal_slot(scope, slot_named(scope, "Dinner").id)
+
+      {:ok, _} =
+        Households.rename_meal_slot(scope, slot_named(scope, "Snack").id, %{name: "Treat"})
+
+      assert {:ok, 2} = Households.restore_default_meal_slots(scope)
+      assert slot_names(scope) == ~w(Breakfast Lunch Dinner Treat Supper)
+
+      assert {:ok, 0} = Households.restore_default_meal_slots(scope)
+    end
+
+    test "a custom slot with a default's name counts as that default", %{owner_scope: scope} do
+      {:ok, _} = Households.delete_meal_slot(scope, slot_named(scope, "Lunch").id)
+      {:ok, _} = Households.create_meal_slot(scope, %{name: "LUNCH"})
+
+      assert MealSlot.missing_defaults(Households.list_meal_slots(scope)) == []
+      assert {:ok, 0} = Households.restore_default_meal_slots(scope)
+    end
+
+    test "only the owner changes slots", %{owner_scope: owner_scope, member_scope: scope} do
+      lunch = slot_named(owner_scope, "Lunch")
+      ids = owner_scope |> Households.list_meal_slots() |> Enum.map(& &1.id)
+
+      assert Households.create_meal_slot(scope, %{name: "Elevenses"}) == {:error, :unauthorized}
+      assert Households.rename_meal_slot(scope, lunch.id, %{name: "X"}) == {:error, :unauthorized}
+      assert Households.delete_meal_slot(scope, lunch.id) == {:error, :unauthorized}
+      assert Households.reorder_meal_slots(scope, Enum.reverse(ids)) == {:error, :unauthorized}
+      assert Households.move_meal_slot(scope, lunch.id, :up) == {:error, :unauthorized}
+      assert Households.restore_default_meal_slots(scope) == {:error, :unauthorized}
+
+      assert slot_names(owner_scope) == ~w(Breakfast Lunch Dinner Snack)
+      refute_received {:household_changed, :meal_slots}
+    end
+
+    test "can't touch another household's slots", %{owner_scope: scope} do
+      %{scope: other_scope} = household_fixture()
+      theirs = slot_named(other_scope, "Lunch")
+
+      assert Households.rename_meal_slot(scope, theirs.id, %{name: "Mine"}) ==
+               {:error, :not_found}
+
+      assert Households.delete_meal_slot(scope, theirs.id) == {:error, :not_found}
+
+      ids = Enum.map(Households.list_meal_slots(other_scope), & &1.id)
+      assert Households.reorder_meal_slots(scope, ids) == {:error, :stale}
+      assert slot_names(other_scope) == ~w(Breakfast Lunch Dinner Snack)
+    end
+  end
+
   describe "meal slot constraints" do
     test "names are unique per household, ignoring case, among active slots" do
       %{household: household} = household_fixture()
