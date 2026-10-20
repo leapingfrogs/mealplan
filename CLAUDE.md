@@ -52,7 +52,8 @@ from `.tool-versions`, the single source shared with CI and the Dockerfile.
 ## The domain
 
 The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
-[iteration-2.md](docs/design/iteration-2.md) for import and export);
+[iteration-2.md](docs/design/iteration-2.md) for import and export,
+[iteration-3.md](docs/design/iteration-3.md) for meal slot tags);
 [USER_STORIES.md](USER_STORIES.md) is the source of the behaviour.
 
 | Context | Owns |

@@ -2,7 +2,8 @@
 
 Lets the owner move a household's recipes and meals in and out of Mealplan, to
 set up the family's meals quickly, keep a copy, or work on recipes in other
-Cooklang tools. Inserted before shopping lists, which move to iteration 3.
+Cooklang tools. Inserted before shopping lists, which move to iteration 3 (and then 4,
+after [meal slot tags](iteration-3.md)).
 Stories: [USER_STORIES.md](../../USER_STORIES.md), "Import and export".
 
 ## Scope
