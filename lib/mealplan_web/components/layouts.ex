@@ -55,6 +55,7 @@ defmodule MealplanWeb.Layouts do
         <.link navigate={~p"/plan"} id="nav-plan" class="btn btn-ghost btn-sm">Plan</.link>
         <.link navigate={~p"/recipes"} id="nav-recipes" class="btn btn-ghost btn-sm">Recipes</.link>
         <.link navigate={~p"/meals"} id="nav-meals" class="btn btn-ghost btn-sm">Meals</.link>
+        <.link navigate={~p"/shopping"} id="nav-shopping" class="btn btn-ghost btn-sm">Shopping</.link>
         <.link navigate={~p"/household"} id="nav-household" class="btn btn-ghost btn-sm">
           Household
         </.link>
