@@ -104,7 +104,9 @@ defmodule Mealplan.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.18", only: :test}
+      {:excoveralls, "~> 0.18", only: :test},
+      {:stream_data, "~> 1.3", only: [:dev, :test]},
+      {:yaml_elixir, "~> 2.12", only: [:dev, :test], runtime: false}
     ]
   end
 
