@@ -232,6 +232,21 @@ defmodule Mealplan.Meals do
     {:ok, meal}
   end
 
+  @doc """
+  Tags a meal with one more of the household's active slots; a meal already
+  tagged with it is left as it is.
+  """
+  def add_slot(%Scope{} = scope, meal_id, slot_id) do
+    with {:ok, meal} <- fetch_meal(scope, meal_id) do
+      meal = get_meal!(scope, meal.id)
+      current = Enum.map(meal.slots, & &1.id)
+
+      if slot_id in current,
+        do: {:ok, meal},
+        else: set_slots(scope, meal.id, current ++ [slot_id])
+    end
+  end
+
   # The ids, if they are all the household's active slots.
   defp active_slot_ids(household_id, slot_ids) do
     ids = for id <- Enum.uniq(slot_ids), {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid

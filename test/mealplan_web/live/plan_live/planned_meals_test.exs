@@ -102,7 +102,7 @@ defmodule MealplanWeb.PlanLive.PlannedMealsTest do
       open_add(view, monday, slots["dinner"])
 
       view |> form("#sheet-search", %{q: "Takeaway"}) |> render_change()
-      view |> element("#pick-new button") |> render_click()
+      view |> element("#pick-new") |> render_click()
 
       [planned_meal] = planned(scope, monday)
       assert Meals.get_meal!(scope, planned_meal.meal_id).name == "Takeaway"

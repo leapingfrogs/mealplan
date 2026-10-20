@@ -34,9 +34,12 @@ tag, as any member can edit meals; changes broadcast `{:meal_changed, id}`.
   3. **Recipes (N)**: collapsed.
 
   Searching filters all three and opens any section with matches; matching
-  meals for the slot still come first. **New meal "…"** and planning a recipe
-  directly tag the meal they create (or reuse) with this slot, so the list
-  learns from planning. The Leftovers tab is unchanged.
+  meals for the slot still come first. Planning a meal from the sheet (an existing
+  meal, **New meal "…"**, or a recipe directly, through its one-recipe meal)
+  adds this slot to the meal's tags if it isn't there, and so does changing a
+  planned meal to another; untagged meals pick up tags as they're planned, so
+  the list learns from planning. Tags are only added this way, never removed,
+  and a past plan in an archived slot adds none. The Leftovers tab is unchanged.
 
 ## Export and import
 
@@ -97,9 +100,9 @@ section in `meals.menu`:
    collapsed, rather than filtering other meals out entirely. Until meals are
    tagged (all existing ones), "Meals for <slot>" is empty and the sheet says
    so, with other meals one tap away.
-2. **Planning from the sheet tags the meal** with that slot (new meals and
-   recipes planned directly), so tags build up without extra work. Picking an
-   existing untagged meal doesn't tag it.
+2. **Planning from the sheet tags the meal** with that slot, if it isn't
+   already: new meals, recipes planned directly and existing meals alike
+   (changed after review, so untagged meals pick up tags through planning).
 3. **The export format** is a `> Slots: Lunch, Dinner` note in each meal's
    section.
 4. **Any member can tag meals**, like other meal edits.
