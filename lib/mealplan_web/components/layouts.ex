@@ -46,6 +46,12 @@ defmodule MealplanWeb.Layouts do
           {@current_scope.household.name}
         </span>
       </div>
+      <nav :if={@current_scope && @current_scope.household} class="flex-none flex gap-1 mr-2">
+        <.link navigate={~p"/plan"} id="nav-plan" class="btn btn-ghost btn-sm">Plan</.link>
+        <.link navigate={~p"/household"} id="nav-household" class="btn btn-ghost btn-sm">
+          Household
+        </.link>
+      </nav>
       <div class="flex-none">
         <.theme_toggle />
       </div>

@@ -95,6 +95,7 @@ defmodule MealplanWeb.Router do
         {MealplanWeb.UserAuth, :require_household}
       ] do
       live "/plan", PlanLive.Week, :index
+      live "/household", HouseholdLive.Settings, :edit
     end
 
     post "/users/update-password", UserSessionController, :update_password
