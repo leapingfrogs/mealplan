@@ -600,6 +600,10 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       {:error, :last_slot} ->
         {:noreply, put_flash(socket, :error, "A household needs at least one meal slot.")}
 
+      {:error, :in_use} ->
+        {:noreply,
+         put_flash(socket, :error, "That slot has planned meals, so it can't be deleted yet.")}
+
       {:error, _reason} ->
         {:noreply, slot_error(socket)}
     end
