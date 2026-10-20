@@ -12,8 +12,10 @@ defmodule Mealplan.Meals do
   alias Mealplan.Accounts.User
   alias Mealplan.Households
   alias Mealplan.Households.Household
+  alias Mealplan.Households.MealSlot
   alias Mealplan.Meals.Meal
   alias Mealplan.Meals.MealRecipe
+  alias Mealplan.Meals.MealSlotTag
   alias Mealplan.Planning
   alias Mealplan.Planning.PlannedMeal
   alias Mealplan.Recipes.Recipe
@@ -35,6 +37,7 @@ defmodule Mealplan.Meals do
     )
     |> search(String.trim(search || ""))
     |> Repo.all()
+    |> Repo.preload(:slots)
   end
 
   defp search(query, ""), do: query
@@ -59,7 +62,7 @@ defmodule Mealplan.Meals do
   def get_meal!(%Scope{household: %Household{id: household_id}}, id) do
     Meal
     |> where(household_id: ^household_id)
-    |> preload(meal_recipes: :recipe)
+    |> preload([:slots, meal_recipes: :recipe])
     |> Repo.get!(id)
   end
 
@@ -179,6 +182,70 @@ defmodule Mealplan.Meals do
     end)
   end
 
+  @doc """
+  Makes `slot_ids` (the household's active slots) the slots the meal
+  suits. Tags on archived slots are left alone.
+  """
+  def set_slots(%Scope{household: %Household{id: household_id}} = scope, meal_id, slot_ids)
+      when is_list(slot_ids) do
+    with {:ok, meal} <- fetch_meal(scope, meal_id),
+         {:ok, slot_ids} <- active_slot_ids(household_id, slot_ids) do
+      fn -> replace_slots(household_id, meal, slot_ids) end
+      |> Repo.transact()
+      |> broadcast(scope)
+    end
+  end
+
+  defp replace_slots(household_id, meal, slot_ids) do
+    active =
+      from s in MealSlot,
+        where: s.household_id == ^household_id and is_nil(s.archived_at),
+        select: s.id
+
+    {_count, _} =
+      Repo.delete_all(
+        from t in MealSlotTag,
+          where:
+            t.meal_id == ^meal.id and t.meal_slot_id in subquery(active) and
+              t.meal_slot_id not in ^slot_ids
+      )
+
+    now = DateTime.utc_now(:second)
+
+    rows =
+      for id <- slot_ids do
+        %{
+          id: Ecto.UUID.generate(),
+          household_id: household_id,
+          meal_id: meal.id,
+          meal_slot_id: id,
+          inserted_at: now
+        }
+      end
+
+    {_count, _} =
+      Repo.insert_all(MealSlotTag, rows,
+        on_conflict: :nothing,
+        conflict_target: [:meal_id, :meal_slot_id]
+      )
+
+    {:ok, meal}
+  end
+
+  # The ids, if they are all the household's active slots.
+  defp active_slot_ids(household_id, slot_ids) do
+    ids = for id <- Enum.uniq(slot_ids), {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid
+
+    found =
+      Repo.all(
+        from s in MealSlot,
+          where: s.id in ^ids and s.household_id == ^household_id and is_nil(s.archived_at),
+          select: s.id
+      )
+
+    if length(found) == length(Enum.uniq(slot_ids)), do: {:ok, found}, else: {:error, :not_found}
+  end
+
   @doc "Moves a recipe one place earlier or later in a meal."
   def move_recipe(%Scope{} = scope, meal_id, recipe_id, direction)
       when direction in [:up, :down] do
@@ -187,6 +254,7 @@ defmodule Mealplan.Meals do
         meal
         |> Repo.preload(:meal_recipes)
         |> Map.fetch!(:meal_recipes)
+        ## Deleting and archiving
         |> Enum.map(& &1.recipe_id)
 
       index = Enum.find_index(ids, &(&1 == recipe_id))
@@ -225,8 +293,6 @@ defmodule Mealplan.Meals do
 
     :ok
   end
-
-  ## Deleting and archiving
 
   @doc """
   What deleting a meal will do: the `upcoming` planned meals (today on,

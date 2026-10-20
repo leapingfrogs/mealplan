@@ -64,6 +64,29 @@ defmodule MealplanWeb.MealLiveTest do
   end
 
   describe "a meal" do
+    test "tags the slots it suits, shown in the list", %{conn: conn, scope: scope} do
+      meal = meal_fixture(scope, %{name: "Porridge"})
+      slots = Map.new(Mealplan.Households.list_meal_slots(scope), &{&1.default_key, &1})
+      {:ok, view, _html} = live(conn, ~p"/meals/#{meal}")
+
+      assert has_element?(view, "#meal-slots", "Tag the slots this meal suits")
+      view |> element("#suits-#{slots["breakfast"].id}") |> render_click()
+      view |> element("#suits-#{slots["snack"].id}") |> render_click()
+      assert has_element?(view, "#suits-#{slots["breakfast"].id}[aria-pressed=true]")
+
+      view |> element("#suits-#{slots["snack"].id}") |> render_click()
+      assert has_element?(view, "#suits-#{slots["snack"].id}[aria-pressed=false]")
+
+      {:ok, list, _html} = live(conn, ~p"/meals")
+      assert has_element?(list, "#meals-#{meal.id}", "No recipes · Breakfast")
+
+      {:ok, _} =
+        Mealplan.Households.rename_meal_slot(scope, slots["breakfast"].id, %{name: "Brekkie"})
+
+      assert has_element?(view, "#suits-#{slots["breakfast"].id}", "Brekkie")
+      assert has_element?(list, "#meals-#{meal.id}", "Brekkie")
+    end
+
     test "adds, orders and removes recipes", %{conn: conn, scope: scope} = context do
       meal = meal_fixture(scope, %{name: "Italian"})
       {:ok, view, _html} = live(conn, ~p"/meals/#{meal}")
