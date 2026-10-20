@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0](https://github.com/leapingfrogs/mealplan/compare/v0.2.0...v0.3.0) (2026-10-20)
+
+
+### Features
+
+* export recipes and meals as a Cooklang folder ([#40](https://github.com/leapingfrogs/mealplan/issues/40)) ([717507b](https://github.com/leapingfrogs/mealplan/commit/717507b35ded72bcf79b04028b0be292325a8aca))
+* import recipes and meals from the household page ([#44](https://github.com/leapingfrogs/mealplan/issues/44)) ([6cde98f](https://github.com/leapingfrogs/mealplan/commit/6cde98f218ec34bd71855ea3e99feee698d76037))
+* match imports against the household and apply them ([#43](https://github.com/leapingfrogs/mealplan/issues/43)) ([92daf5a](https://github.com/leapingfrogs/mealplan/commit/92daf5a7623a0c41787414eb082510321b9004a5))
+* read import files into a bundle ([#42](https://github.com/leapingfrogs/mealplan/issues/42)) ([a379ca6](https://github.com/leapingfrogs/mealplan/commit/a379ca6df8f1acf2ad706941d4597d7288f0bb00))
+
+
+### Bug Fixes
+
+* read wrapped and block metadata values in Cooklang front matter ([#45](https://github.com/leapingfrogs/mealplan/issues/45)) ([b30d200](https://github.com/leapingfrogs/mealplan/commit/b30d2009f0852744df9fb74b115a0356f9ed30ea))
+
 ## [0.2.0](https://github.com/leapingfrogs/mealplan/compare/v0.1.2...v0.2.0) (2026-10-20)
 
 
