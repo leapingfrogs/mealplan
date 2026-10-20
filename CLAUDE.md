@@ -49,6 +49,43 @@ from `.tool-versions`, the single source shared with CI and the Dockerfile.
 `mix ci` = `ci.lint` (format, unused locks, hex/deps audit, warnings as errors,
 `credo --strict`, `sobelow`) + `ci.test` (tests with the 80% coverage floor).
 
+## The domain
+
+The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md);
+[USER_STORIES.md](USER_STORIES.md) is the source of the behaviour.
+
+| Context | Owns |
+|---|---|
+| `Households` | households, invitations, membership and ownership, meal slots |
+| `Recipes` | recipes and their ingredient rows (rebuilt from the source on save) |
+| `Cooklang` | the parser (ADR 13): pure, never raises, no database |
+| `Meals` | meals and the recipes in them, with history |
+| `Planning` | planned meals, leftovers, skips, weeks, servings maths, copying |
+
+- **Scope first.** Every context function takes the caller's
+  `%Scope{user, household}` and only touches that household. Owner-only
+  operations check `Households.owner?/1`. Tables that reference each other
+  carry `household_id` in composite foreign keys, so rows can't cross
+  households even through a bug.
+- **Dates are household-local.** "Today" is `Planning.today/1` (the
+  household's time zone); weeks start on Monday. Never use `Date.utc_today/0`
+  for plan dates.
+- **Live updates** go through `Households.broadcast/2` on `household:<id>`:
+  `{:household_updated, h}`, `{:household_changed, :members | :invitations |
+  :meal_slots}`, `{:member_removed, id}`, `:household_deleted`,
+  `{:recipe_changed, id}`, `{:meal_changed, id}`, `{:plan_changed, monday}`.
+  The `:require_household` on_mount hook subscribes every household page and
+  passes messages on only if the LiveView defines `handle_info/2`; always
+  keep a catch-all clause.
+- **The archive rule.** Deleting a recipe, meal or slot that a plan before
+  today used archives it (`archived_at`) instead; lists and pickers show
+  active rows only. Taking a recipe out of a meal that past plans used sets
+  `meal_recipes.removed_on` rather than deleting the row: `Meal.meal_recipes`
+  is the current recipes, `Meals.recipes_on/3` what a meal had on a date.
+- **UI.** Phone first; check new screens at 390 px. Sheets and confirmation
+  panels follow the week plan's patterns; avoid DaisyUI `alert` for panels
+  with controls (it lays them out side by side).
+
 ## Code conventions
 
 - **Formatting:** Styler, line length 98. Let `mix format` decide.
