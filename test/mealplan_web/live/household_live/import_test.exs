@@ -143,4 +143,80 @@ defmodule MealplanWeb.HouseholdLive.ImportTest do
             {:live_redirect, %{to: "/household", flash: %{"error" => "Only the household" <> _}}}} =
              live(member_conn, ~p"/household/import")
   end
+
+  describe "slot tags" do
+    setup %{conn: conn, scope: scope} do
+      slots = scope |> Mealplan.Households.list_meal_slots() |> Map.new(&{&1.name, &1.id})
+
+      menu = """
+      = Chilli night
+
+      > Slots: Dinner, Brunch
+
+      = Picnic
+
+      = Eat out
+
+      = Toast
+      """
+
+      {:ok, view, _html} = live(conn, ~p"/household/import")
+      upload(view, [{"week.menu", menu}])
+      %{view: view, slots: slots}
+    end
+
+    defp chip(key, slot_id), do: "#slot-#{key}-#{slot_id}"
+
+    defp pressed?(view, key, slot_id),
+      do: has_element?(view, chip(key, slot_id) <> "[aria-pressed=true]")
+
+    defp meal_slots(scope, name) do
+      meal = Enum.find(Meals.list_meals(scope), &(&1.name == name))
+      Enum.map(meal.slots, & &1.name)
+    end
+
+    test "matched tags are chosen, unmatched names shown, and chips toggle", %{view: view} = c do
+      assert pressed?(view, "meal-0", c.slots["Dinner"])
+      refute pressed?(view, "meal-0", c.slots["Lunch"])
+      assert has_element?(view, "#unmatched-meal-0", "Brunch: no such slot")
+      refute has_element?(view, "#unmatched-meal-1")
+
+      view |> element(chip("meal-1", c.slots["Lunch"])) |> render_click()
+      assert pressed?(view, "meal-1", c.slots["Lunch"])
+      view |> element(chip("meal-0", c.slots["Dinner"])) |> render_click()
+      refute pressed?(view, "meal-0", c.slots["Dinner"])
+
+      # Left out, its tags don't matter.
+      view |> form("#import-choices", choices: %{"meal-3" => "leave_out"}) |> render_change()
+      refute has_element?(view, "#slots-meal-3")
+    end
+
+    test "sets slots for meals without any, then imports them", %{view: view, scope: scope} = c do
+      view |> element(chip("meal-1", c.slots["Lunch"])) |> render_click()
+      assert has_element?(view, "#bulk-slots", "(2 meals)")
+      assert has_element?(view, "#apply-bulk-slots[disabled]")
+
+      view |> element(chip("bulk", c.slots["Dinner"])) |> render_click()
+      view |> element(chip("bulk", c.slots["Snack"])) |> render_click()
+      view |> element(chip("bulk", c.slots["Snack"])) |> render_click()
+      view |> element("#apply-bulk-slots") |> render_click()
+
+      refute has_element?(view, "#bulk-slots")
+      assert pressed?(view, "meal-2", c.slots["Dinner"])
+      refute pressed?(view, "meal-1", c.slots["Dinner"])
+
+      view |> form("#import-choices") |> render_submit()
+      assert meal_slots(scope, "Chilli night") == ["Dinner"]
+      assert meal_slots(scope, "Picnic") == ["Lunch"]
+      assert meal_slots(scope, "Eat out") == ["Dinner"]
+      assert meal_slots(scope, "Toast") == ["Dinner"]
+    end
+
+    test "ignores slots that aren't ours", %{view: view} do
+      render_click(view, "toggle_slot", %{"key" => "meal-1", "slot" => Ecto.UUID.generate()})
+      render_click(view, "toggle_bulk_slot", %{"slot" => "nope"})
+      render_click(view, "toggle_slot", %{"key" => "meal-9", "slot" => "nope"})
+      assert has_element?(view, "#apply-bulk-slots[disabled]")
+    end
+  end
 end

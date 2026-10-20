@@ -18,6 +18,7 @@ defmodule Mealplan.Transfer.Reader do
   @max_entries 500
   @max_unzipped 20 * 1024 * 1024
   @max_source 50_000
+  @max_slot_names 20
   @max_name 120
 
   @doc "The limits, for the upload form and messages."
@@ -316,7 +317,14 @@ defmodule Mealplan.Transfer.Reader do
 
         case {section.name && clean_name(section.name), references} do
           {name, _references} when name not in [nil, ""] ->
-            {[%ImportedMeal{file: display, name: name, references: references} | meals], problems}
+            meal = %ImportedMeal{
+              file: display,
+              name: name,
+              references: references,
+              slot_names: slot_names(section)
+            }
+
+            {[meal | meals], problems}
 
           {_no_name, []} ->
             {meals, problems}
@@ -334,6 +342,26 @@ defmodule Mealplan.Transfer.Reader do
       end)
 
     %{bundle | meals: meals ++ bundle.meals, problems: problems ++ bundle.problems}
+  end
+
+  # The names in the section's first "> Slots: Lunch, Dinner" note.
+  defp slot_names(section) do
+    section.blocks
+    |> Enum.find_value([], fn
+      %Cooklang.Note{text: text} -> slots_note(text)
+      _step -> nil
+    end)
+    |> Enum.map(&clean_name/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+    |> Enum.take(@max_slot_names)
+  end
+
+  defp slots_note(text) do
+    case Regex.run(~r/\Aslots\s*:(.*)\z/isu, String.trim(text)) do
+      [_all, names] -> String.split(names, ",")
+      nil -> nil
+    end
   end
 
   defp reference("./" <> path), do: {:path, reference_key(path)}

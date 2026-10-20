@@ -61,7 +61,9 @@ section in `meals.menu`:
   `Slots:` (ignoring case) and splits it on commas; other notes are ignored.
 - **Matching:** each name matches one of the household's active slots,
   ignoring case and surrounding spaces. Names that match nothing are kept and
-  shown.
+  shown. A meal with no slots note that matches one of ours starts with
+  our meal's tags, so replacing it (or keeping both) doesn't clear them.
+  Its tags still change if the owner changes the chips.
 - **Preview:** each meal shows its slot tags as toggle chips, matched ones
   selected, with unmatched names listed beside them ("Brunch: no such
   slot"). A **Set slots for meals without any** control at the top applies a

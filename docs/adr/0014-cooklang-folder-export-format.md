@@ -25,7 +25,10 @@ An export is a zip of a Cooklang recipe folder:
   repeats (ignoring case).
 - `meals.menu`: front matter (`source: Mealplan`, `exported`), then a section
   per active meal with its recipes as references (`@./recipes/<name>{}`) in
-  order; a meal without recipes is an empty section.
+  order; a meal without recipes is an empty section. Since iteration 3 a
+  tagged meal's section starts with a `> Slots: Lunch, Dinner` note (a plain
+  Cooklang note, so other tools show it), which imports match to our slots by
+  name.
 
 Imports read the same layout and plain Cooklang folders (iteration 2 design).
 
@@ -37,5 +40,6 @@ Imports read the same layout and plain Cooklang folders (iteration 2 design).
   by hand keeps its title.
 - `.menu` sections elsewhere often mean days, not meals; imports show them in
   the preview so the owner can leave them out.
-- Archived recipes and meals, plans, slots and members are not exported; the
-  database backups cover full restores.
+- Archived recipes and meals, plans, slots and members are not exported (a
+  meal's slot tags are, by slot name); the database backups cover full
+  restores.

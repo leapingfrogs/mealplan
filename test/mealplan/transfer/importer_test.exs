@@ -49,9 +49,12 @@ defmodule Mealplan.Transfer.ImporterTest do
     soup = recipe_fixture(scope, %{name: "Soup"})
     quirky = recipe_fixture(scope, %{name: "soup", servings: 6})
     odd = recipe_fixture(scope, %{name: ~s("Quoted": #1 / 2)})
-    meal_fixture(scope, %{name: "Chilli and rice"}, [chilli, rice])
+    chilli_rice = meal_fixture(scope, %{name: "Chilli and rice"}, [chilli, rice])
     meal_fixture(scope, %{name: "Soups"}, [quirky, soup, odd])
-    meal_fixture(scope, %{name: "Eat out"})
+    eat_out = meal_fixture(scope, %{name: "Eat out"})
+    slots = Map.new(Households.list_meal_slots(scope), &{&1.default_key, &1.id})
+    {:ok, _} = Meals.set_slots(scope, chilli_rice.id, [slots["dinner"], slots["lunch"]])
+    {:ok, _} = Meals.set_slots(scope, eat_out.id, [slots["dinner"]])
     {:ok, {name, zip}} = Transfer.export(scope)
 
     %{scope: other} = household_fixture()
@@ -62,6 +65,7 @@ defmodule Mealplan.Transfer.ImporterTest do
 
     assert {:ok, %{recipes: %{added: 5}, meals: %{added: 3}}} = Transfer.apply(other, import, %{})
     assert export_files(other) == export_files(scope)
+    assert export_files(other)["meals.menu"] =~ "> Slots: Lunch, Dinner"
   end
 
   describe "plan/2" do
@@ -133,6 +137,85 @@ defmodule Mealplan.Transfer.ImporterTest do
     files = for {path, content} <- entries, do: {String.to_charlist(path), content}
     {:ok, {_name, binary}} = :zip.create(~c"t.zip", files, [:memory])
     binary
+  end
+
+  describe "slot tags" do
+    setup %{scope: scope} do
+      {:ok, brunch} = Households.create_meal_slot(scope, %{name: "Brunch"})
+      slots = scope |> Households.list_meal_slots() |> Map.new(&{&1.name, &1.id})
+      ours = meal_fixture(scope, %{name: "Chilli night"})
+      {:ok, _} = Meals.set_slots(scope, ours.id, [slots["Breakfast"]])
+
+      menu = """
+      = Chilli night
+
+      > Slots: dinner
+
+      = Picnic
+
+      > Serve cold.
+
+      > SLOTS:  lunch , Elevenses,, LUNCH ,brunch
+
+      = Eat out
+      """
+
+      %{slots: slots, brunch: brunch, ours: ours, import: plan(scope, [{"m.menu", menu}])}
+    end
+
+    defp meal_slots(scope, name) do
+      meal = Enum.find(Meals.list_meals(scope), &(&1.name == name))
+      Enum.map(meal.slots, & &1.name)
+    end
+
+    test "match our active slots ignoring case and spaces; the rest are kept to show", c do
+      [chilli, picnic, eat_out] = c.import.meals
+      assert picnic.imported.slot_names == ["lunch", "Elevenses", "brunch"]
+      assert {chilli.slot_ids, chilli.unmatched_slots} == {[c.slots["Dinner"]], []}
+
+      assert {picnic.slot_ids, picnic.unmatched_slots} ==
+               {[c.slots["Lunch"], c.brunch.id], ["Elevenses"]}
+
+      assert {eat_out.slot_ids, eat_out.unmatched_slots} == {[], []}
+    end
+
+    test "add and keep both tag the new meal; replace sets ours; skip leaves ours alone",
+         %{scope: scope} = c do
+      import = Transfer.choose_slots(c.import, "meal-2", [c.slots["Dinner"], c.slots["Dinner"]])
+      assert {:ok, _summary} = Transfer.apply(scope, import, %{})
+      assert meal_slots(scope, "Picnic") == ["Lunch", "Brunch"]
+      assert meal_slots(scope, "Eat out") == ["Dinner"]
+      assert meal_slots(scope, "Chilli night") == ["Breakfast"]
+
+      assert {:ok, _summary} = Transfer.apply(scope, c.import, %{"meal-0" => "keep_both"})
+      assert meal_slots(scope, "Chilli night (2)") == ["Dinner"]
+
+      assert {:ok, _summary} = Transfer.apply(scope, c.import, %{"meal-0" => "replace"})
+      assert meal_slots(scope, "Chilli night") == ["Dinner"]
+    end
+
+    test "a meal without a slots note starts with our tags, so replacing keeps them",
+         %{scope: scope} = c do
+      import = plan(scope, [{"m.menu", "= chilli NIGHT\n\n> Serve hot."}])
+      [item] = import.meals
+      assert {item.action, item.slot_ids} == {:skip, [c.slots["Breakfast"]]}
+
+      assert {:ok, _summary} = Transfer.apply(scope, import, %{"meal-0" => "replace"})
+      assert meal_slots(scope, "Chilli night") == ["Breakfast"]
+
+      assert {:ok, _summary} = Transfer.apply(scope, import, %{"meal-0" => "keep_both"})
+      assert meal_slots(scope, "chilli NIGHT (2)") == ["Breakfast"]
+
+      cleared = Transfer.choose_slots(import, "meal-0", [])
+      assert {:ok, _summary} = Transfer.apply(scope, cleared, %{"meal-0" => "replace"})
+      assert meal_slots(scope, "Chilli night") == []
+    end
+
+    test "a slot deleted since the preview is dropped", %{scope: scope} = c do
+      {:ok, _} = Households.delete_meal_slot(scope, c.brunch.id)
+      assert {:ok, _summary} = Transfer.apply(scope, c.import, %{})
+      assert meal_slots(scope, "Picnic") == ["Lunch"]
+    end
   end
 
   describe "apply/3" do

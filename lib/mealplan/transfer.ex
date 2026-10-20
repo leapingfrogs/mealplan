@@ -4,8 +4,8 @@ defmodule Mealplan.Transfer do
 
   An export is a Cooklang recipe folder in a zip: `recipes/<name>.cook` for
   each active recipe, with its name and servings in the front matter, and
-  `meals.menu` with a section per active meal listing its recipes. Owner
-  only.
+  `meals.menu` with a section per active meal listing its recipes (and its
+  slot tags as a `> Slots: Lunch, Dinner` note). Owner only.
   """
   alias Mealplan.Accounts.Scope
   alias Mealplan.Households
@@ -61,6 +61,12 @@ defmodule Mealplan.Transfer do
   """
   defdelegate apply(scope, import, choices), to: Importer
 
+  @doc """
+  Sets the slots an imported meal (by key) will be tagged with when it's
+  added, kept or replaces ours.
+  """
+  defdelegate choose_slots(import, key, slot_ids), to: Importer
+
   @doc "Import limits, for forms and messages."
   defdelegate limits(), to: Reader
 
@@ -91,11 +97,16 @@ defmodule Mealplan.Transfer do
               file_name = Map.get(file_by_recipe, id),
               do: "@./recipes/#{file_name}{}"
 
-        Enum.join(["= #{section_name(meal.name)}" | blank_then(references)], "\n")
+        lines = blank_then(slots_note(meal.slots)) ++ blank_then(references)
+        Enum.join(["= #{section_name(meal.name)}" | lines], "\n")
       end)
 
     Enum.join(["---\nsource: Mealplan\nexported: #{today}\n---" | sections], "\n\n") <> "\n"
   end
+
+  # Its own paragraph, so a recipe line can't run into it.
+  defp slots_note([]), do: []
+  defp slots_note(slots), do: ["> Slots: " <> Enum.map_join(slots, ", ", & &1.name)]
 
   defp blank_then([]), do: []
   defp blank_then(lines), do: ["" | lines]

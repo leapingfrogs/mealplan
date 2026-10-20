@@ -89,6 +89,18 @@ defmodule Mealplan.MealSlotTagsTest do
     assert slot_names(scope, other) == []
   end
 
+  test "renaming a slot keeps its tags, and exports use the new name",
+       %{scope: scope, slots: slots, meal: meal} do
+    {:ok, _} = Meals.set_slots(scope, meal.id, [slots["dinner"].id])
+    {:ok, _} = Households.rename_meal_slot(scope, slots["dinner"].id, %{name: "Tea"})
+
+    assert slot_names(scope, meal) == ["Tea"]
+    {:ok, {_name, zip}} = Mealplan.Transfer.export(scope)
+    {:ok, files} = :zip.unzip(zip, [:memory])
+    {_path, menu} = List.keyfind(files, ~c"meals.menu", 0)
+    assert menu =~ "= Chilli night\n\n> Slots: Tea"
+  end
+
   test "deleting a slot or a meal outright removes its tags", %{
     scope: scope,
     slots: slots,

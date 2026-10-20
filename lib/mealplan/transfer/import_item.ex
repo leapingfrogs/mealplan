@@ -11,6 +11,9 @@ defmodule Mealplan.Transfer.ImportItem do
       number, within 1..100
     * `references` - for meals, in order: `{:imported, recipe_key}`,
       `{:existing, recipe}` or `{:missing, label}`
+    * `slot_ids` - for meals: the household's slots to tag it with, matched
+      from its `slot_names` and then as the owner chooses
+    * `unmatched_slots` - for meals: slot names that match none of ours
   """
   @type action :: :add | :skip | :replace | :keep_both | :leave_out
   @type t :: %__MODULE__{
@@ -19,10 +22,21 @@ defmodule Mealplan.Transfer.ImportItem do
           existing: struct() | nil,
           action: action(),
           servings: pos_integer() | nil,
-          references: list()
+          references: list(),
+          slot_ids: [Ecto.UUID.t()],
+          unmatched_slots: [String.t()]
         }
 
-  defstruct [:key, :imported, :existing, :action, :servings, references: []]
+  defstruct [
+    :key,
+    :imported,
+    :existing,
+    :action,
+    :servings,
+    references: [],
+    slot_ids: [],
+    unmatched_slots: []
+  ]
 
   @doc "The actions open to an item."
   def actions(%__MODULE__{existing: nil}), do: [:add, :leave_out]

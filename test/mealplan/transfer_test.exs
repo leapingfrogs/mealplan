@@ -7,6 +7,7 @@ defmodule Mealplan.TransferTest do
 
   alias Mealplan.Cooklang
   alias Mealplan.Households
+  alias Mealplan.Meals
   alias Mealplan.Planning
   alias Mealplan.Recipes
   alias Mealplan.Transfer
@@ -33,8 +34,11 @@ defmodule Mealplan.TransferTest do
         })
 
       rice = recipe_fixture(scope, %{name: "Rice", servings: 2})
-      meal_fixture(scope, %{name: "Chilli and rice"}, [chilli, rice])
-      meal_fixture(scope, %{name: "Eat out"})
+      chilli_rice = meal_fixture(scope, %{name: "Chilli and rice"}, [chilli, rice])
+      eat_out = meal_fixture(scope, %{name: "Eat out"})
+      slots = Map.new(Households.list_meal_slots(scope), &{&1.default_key, &1.id})
+      {:ok, _} = Meals.set_slots(scope, chilli_rice.id, [slots["dinner"], slots["lunch"]])
+      {:ok, _} = Meals.set_slots(scope, eat_out.id, [slots["dinner"]])
 
       assert {:ok, {file_name, zip}} = Transfer.export(scope)
       assert file_name == "mealplan-The Davies-#{Planning.today(scope)}.zip"
@@ -56,20 +60,23 @@ defmodule Mealplan.TransferTest do
       assert [%{name: "beans"}] = parsed.ingredients
 
       menu = files["meals.menu"]
-      assert menu =~ "= Chilli and rice\n\n@./recipes/Chilli{}\n@./recipes/Rice{}"
-      assert menu =~ "= Eat out"
+
+      assert menu =~
+               "= Chilli and rice\n\n> Slots: Lunch, Dinner\n\n@./recipes/Chilli{}\n@./recipes/Rice{}"
+
+      assert menu =~ "= Eat out\n\n> Slots: Dinner\n"
 
       sections = Cooklang.parse(menu).sections
       assert Enum.map(sections, & &1.name) == ["Chilli and rice", "Eat out"]
       [with_recipes, empty] = sections
-      assert [%{items: items}] = with_recipes.blocks
+      assert [%Cooklang.Note{}, %{items: items}] = with_recipes.blocks
 
       assert for(%Cooklang.Ingredient{name: name} <- items, do: name) == [
                "./recipes/Chilli",
                "./recipes/Rice"
              ]
 
-      assert empty.blocks == []
+      assert empty.blocks == [%Cooklang.Note{text: "Slots: Dinner"}]
     end
 
     test "unique, safe file names, and references that match them", %{scope: scope} do
@@ -104,7 +111,7 @@ defmodule Mealplan.TransferTest do
       [slot | _] = Households.list_meal_slots(scope)
       {:ok, _} = Planning.plan_meal(scope, Date.add(Planning.today(scope), -2), slot.id, meal.id)
       {:ok, :archived} = Recipes.delete_recipe(scope, old)
-      {:ok, :archived} = Mealplan.Meals.delete_meal(scope, meal)
+      {:ok, :archived} = Meals.delete_meal(scope, meal)
 
       {:ok, {_name, zip}} = Transfer.export(scope)
       files = unzip(zip)
