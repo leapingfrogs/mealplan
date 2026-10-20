@@ -168,7 +168,7 @@ defmodule MealplanWeb.HouseholdLive.MealSlotsTest do
 
     {:ok, _} = Households.rename_meal_slot(scope, slot(scope, "Lunch").id, %{name: "Midday"})
 
-    assert has_element?(week, "#meal-slots", "Midday")
-    refute has_element?(week, "#meal-slots", "Lunch")
+    assert has_element?(week, "#days", "Midday")
+    refute has_element?(week, "#days", "Lunch")
   end
 end

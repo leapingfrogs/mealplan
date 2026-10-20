@@ -95,6 +95,6 @@ defmodule MealplanWeb.HouseholdLive.SettingsTest do
 
     :ok = Households.broadcast(scope, {:something_else, :happened})
 
-    assert render(plan) =~ "meal-slots"
+    assert has_element?(plan, "#days")
   end
 end

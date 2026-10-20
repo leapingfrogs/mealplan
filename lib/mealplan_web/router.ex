@@ -95,6 +95,7 @@ defmodule MealplanWeb.Router do
         {MealplanWeb.UserAuth, :require_household}
       ] do
       live "/plan", PlanLive.Week, :index
+      live "/plan/:week", PlanLive.Week, :show
       live "/household", HouseholdLive.Settings, :edit
       live "/recipes", RecipeLive.Index, :index
       live "/recipes/new", RecipeLive.Form, :new
