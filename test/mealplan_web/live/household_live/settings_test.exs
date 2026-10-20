@@ -25,9 +25,9 @@ defmodule MealplanWeb.HouseholdLive.SettingsTest do
 
       assert has_element?(view, "#household-form")
       assert has_element?(view, "#member-#{user.id}", "(you)")
-      assert has_element?(view, "#member-#{user.id}", "owner")
+      assert has_element?(view, "#member-#{user.id} .badge", "owner")
       assert has_element?(view, "#member-#{member.id}", member.email)
-      refute has_element?(view, "#member-#{member.id}", "owner")
+      refute has_element?(view, "#member-#{member.id} .badge", "owner")
     end
 
     test "saves changes and updates the header", %{conn: conn, household: household} do

@@ -352,6 +352,107 @@ defmodule Mealplan.HouseholdsTest do
     end
   end
 
+  describe "remove_member/2 and leave_household/1" do
+    setup do
+      %{scope: owner_scope, household: household, user: owner} = household_fixture()
+      %{scope: member_scope, user: member} = member_fixture(household)
+      :ok = Households.subscribe(owner_scope)
+
+      %{
+        owner_scope: owner_scope,
+        owner: owner,
+        member_scope: member_scope,
+        member: member,
+        household: household
+      }
+    end
+
+    test "the owner removes a member, who is told", %{owner_scope: owner_scope, member: member} do
+      assert Households.remove_member(owner_scope, member.id) == :ok
+      assert Repo.get!(User, member.id).household_id == nil
+      assert_receive {:member_removed, id}
+      assert id == member.id
+    end
+
+    test "only the owner removes, and never themselves",
+         %{owner_scope: owner_scope, owner: owner, member_scope: member_scope} do
+      assert Households.remove_member(member_scope, owner.id) == {:error, :unauthorized}
+      assert Households.remove_member(owner_scope, owner.id) == {:error, :owner}
+      assert Households.remove_member(owner_scope, user_fixture().id) == {:error, :not_found}
+    end
+
+    test "a member leaves; the owner must transfer first",
+         %{owner_scope: owner_scope, member_scope: member_scope, member: member} do
+      assert Households.leave_household(member_scope) == :ok
+      assert Repo.get!(User, member.id).household_id == nil
+      assert_receive {:member_removed, _}
+
+      assert Households.leave_household(owner_scope) == {:error, :owner_must_transfer}
+    end
+  end
+
+  describe "transfer_ownership/2" do
+    test "the owner makes a member the owner" do
+      %{scope: owner_scope, household: household, user: owner} = household_fixture()
+      %{scope: member_scope, user: member} = member_fixture(household)
+      :ok = Households.subscribe(owner_scope)
+
+      assert Households.transfer_ownership(member_scope, owner.id) == {:error, :unauthorized}
+      assert Households.transfer_ownership(owner_scope, user_fixture().id) == {:error, :not_found}
+
+      assert {:ok, %Household{owner_id: new_owner}} =
+               Households.transfer_ownership(owner_scope, member.id)
+
+      assert new_owner == member.id
+      assert_receive {:household_updated, %Household{owner_id: ^new_owner}}
+
+      new_scope = %{owner_scope | household: Repo.get!(Household, household.id)}
+      refute Households.owner?(new_scope)
+      assert Households.leave_household(new_scope) == :ok
+    end
+  end
+
+  describe "delete_household/2" do
+    alias Mealplan.Households.Invitation
+
+    test "needs the owner and the exact name, then removes everything" do
+      %{scope: owner_scope, household: household, user: owner} =
+        household_fixture(user_fixture(), %{name: "Doomed"})
+
+      %{scope: member_scope, user: member} = member_fixture(household)
+
+      {:ok, _} =
+        Households.invite(
+          owner_scope,
+          %{email: "pending@example.com"},
+          &"https://x/#{&1}",
+          "https://x"
+        )
+
+      :ok = Households.subscribe(owner_scope)
+
+      assert Households.delete_household(member_scope, "Doomed") == {:error, :unauthorized}
+
+      assert Households.delete_household(owner_scope, "doomed") ==
+               {:error, :confirmation_mismatch}
+
+      assert Repo.get(Household, household.id)
+
+      assert Households.delete_household(owner_scope, " Doomed ") == :ok
+      assert_receive :household_deleted
+
+      refute Repo.get(Household, household.id)
+      assert Repo.get!(User, owner.id).household_id == nil
+      assert Repo.get!(User, member.id).household_id == nil
+
+      assert Repo.aggregate(from(s in MealSlot, where: s.household_id == ^household.id), :count) ==
+               0
+
+      assert Repo.aggregate(from(i in Invitation, where: i.household_id == ^household.id), :count) ==
+               0
+    end
+  end
+
   describe "list_meal_slots/1" do
     test "only lists the scope's household's active slots" do
       %{scope: scope, household: household} = household_fixture()

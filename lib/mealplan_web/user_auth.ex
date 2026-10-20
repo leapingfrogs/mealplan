@@ -289,7 +289,30 @@ defmodule MealplanWeb.UserAuth do
     pass_on(Phoenix.Component.assign(socket, :current_scope, scope))
   end
 
+  # Whoever left or was removed loses access straight away, on every open
+  # page; everyone else's pages just see the membership change.
+  defp household_event({:member_removed, user_id}, socket) do
+    %Scope{user: user, household: household} = socket.assigns.current_scope
+
+    if user.id == user_id do
+      {:halt, leave_household_page(socket, "You're no longer a member of #{household.name}.")}
+    else
+      pass_on(socket)
+    end
+  end
+
+  defp household_event(:household_deleted, socket) do
+    name = socket.assigns.current_scope.household.name
+    {:halt, leave_household_page(socket, "#{name} was deleted.")}
+  end
+
   defp household_event(_message, socket), do: pass_on(socket)
+
+  defp leave_household_page(socket, message) do
+    socket
+    |> Phoenix.LiveView.put_flash(:info, message)
+    |> Phoenix.LiveView.redirect(to: ~p"/welcome")
+  end
 
   defp pass_on(socket) do
     if function_exported?(socket.view, :handle_info, 2),

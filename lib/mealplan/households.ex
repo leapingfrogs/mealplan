@@ -59,6 +59,82 @@ defmodule Mealplan.Households do
     )
   end
 
+  ## Membership
+
+  @doc """
+  Removes a member from the household (owner only; not the owner). Their
+  open pages are sent to /welcome via `{:member_removed, user_id}`.
+  """
+  def remove_member(%Scope{household: %Household{} = household} = scope, member_id) do
+    cond do
+      not owner?(scope) -> {:error, :unauthorized}
+      member_id == household.owner_id -> {:error, :owner}
+      true -> unlink(household, member_id)
+    end
+  end
+
+  @doc """
+  Leaves the household. The owner must transfer ownership first (or delete
+  the household).
+  """
+  def leave_household(
+        %Scope{user: %User{id: user_id}, household: %Household{} = household} = scope
+      ) do
+    if owner?(scope), do: {:error, :owner_must_transfer}, else: unlink(household, user_id)
+  end
+
+  defp unlink(household, user_id) do
+    from(u in User, where: u.id == ^user_id and u.household_id == ^household.id)
+    |> Repo.update_all(set: [household_id: nil])
+    |> case do
+      {1, _} ->
+        :ok = broadcast_to(household.id, {:member_removed, user_id})
+        :ok
+
+      {0, _} ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc "Makes another member the owner (owner only)."
+  def transfer_ownership(%Scope{household: %Household{} = household} = scope, member_id) do
+    cond do
+      not owner?(scope) ->
+        {:error, :unauthorized}
+
+      not Repo.exists?(
+        from u in User, where: u.id == ^member_id and u.household_id == ^household.id
+      ) ->
+        {:error, :not_found}
+
+      true ->
+        household = household |> Ecto.Changeset.change(owner_id: member_id) |> Repo.update!()
+        :ok = broadcast(scope, {:household_updated, household})
+        {:ok, household}
+    end
+  end
+
+  @doc """
+  Deletes the household and everything in it (owner only), once
+  `confirmation` matches its name. Members' open pages are sent to /welcome
+  via `:household_deleted`.
+  """
+  def delete_household(%Scope{household: %Household{} = household} = scope, confirmation) do
+    cond do
+      not owner?(scope) ->
+        {:error, :unauthorized}
+
+      String.trim(to_string(confirmation)) != household.name ->
+        {:error, :confirmation_mismatch}
+
+      true ->
+        # Members are unlinked and household data cascades in the database.
+        {:ok, _} = Repo.delete(household)
+        :ok = broadcast(scope, :household_deleted)
+        :ok
+    end
+  end
+
   @doc "Returns a changeset for the household form."
   def change_household(%Household{} = household \\ %Household{}, attrs \\ %{}) do
     Household.changeset(household, attrs)
