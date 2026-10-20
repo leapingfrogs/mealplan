@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.0](https://github.com/leapingfrogs/mealplan/compare/v0.1.2...v0.2.0) (2026-10-20)
+
+
+### Features
+
+* add households with onboarding and default meal slots ([#21](https://github.com/leapingfrogs/mealplan/issues/21)) ([46ebfda](https://github.com/leapingfrogs/mealplan/commit/46ebfda9debdf086bc20ca4837cb981648a7477a))
+* add meals built from recipes ([#31](https://github.com/leapingfrogs/mealplan/issues/31)) ([6456772](https://github.com/leapingfrogs/mealplan/commit/645677256a7ea4742a18e8de5d905b7baf41e235))
+* add recipes with a Cooklang editor ([#30](https://github.com/leapingfrogs/mealplan/issues/30)) ([9ee419a](https://github.com/leapingfrogs/mealplan/commit/9ee419acaae9a63a52ccd5ad0b71409818e4dc64))
+* add the Cooklang parser ([#29](https://github.com/leapingfrogs/mealplan/issues/29)) ([e217f26](https://github.com/leapingfrogs/mealplan/commit/e217f26ea4e62fd25a8f960cb5fe2c1820026a86))
+* add the household settings page ([#23](https://github.com/leapingfrogs/mealplan/issues/23)) ([ff73461](https://github.com/leapingfrogs/mealplan/commit/ff734619272f7104bdd94bc85e779c5ac20d5343))
+* add the planning context and servings maths ([#32](https://github.com/leapingfrogs/mealplan/issues/32)) ([b1ed4e9](https://github.com/leapingfrogs/mealplan/commit/b1ed4e9dcb9af5764aec5c6c4f54d644595448e2))
+* add the week plan screen ([#33](https://github.com/leapingfrogs/mealplan/issues/33)) ([d8d8c41](https://github.com/leapingfrogs/mealplan/commit/d8d8c418dba99c97ce9c625bb23ab5f906457df2))
+* add, edit, move and remove planned meals ([#34](https://github.com/leapingfrogs/mealplan/issues/34)) ([d6b44dd](https://github.com/leapingfrogs/mealplan/commit/d6b44ddef829d99915694185b9c075e56115cbec))
+* copy last week's plan ([#36](https://github.com/leapingfrogs/mealplan/issues/36)) ([cdded96](https://github.com/leapingfrogs/mealplan/commit/cdded96054e564c084747a5157f620c1e2023f60))
+* delete and archive recipes, meals and slots ([#37](https://github.com/leapingfrogs/mealplan/issues/37)) ([cd1e9a8](https://github.com/leapingfrogs/mealplan/commit/cd1e9a811f2adaf3bc3eef9852c1d8ddab99f933))
+* invitation links for new accounts last as long as the invitation ([#26](https://github.com/leapingfrogs/mealplan/issues/26)) ([c70f604](https://github.com/leapingfrogs/mealplan/commit/c70f60476ac3e5c712028d2da42be86757e74f67))
+* invite people to a household by email ([#24](https://github.com/leapingfrogs/mealplan/issues/24)) ([6acc7c0](https://github.com/leapingfrogs/mealplan/commit/6acc7c0516a9b790be6042b40c03a3a6ad992bb4))
+* manage meal slots on the household page ([#27](https://github.com/leapingfrogs/mealplan/issues/27)) ([200a484](https://github.com/leapingfrogs/mealplan/commit/200a484607338228e1cbcc162ca8d9c7872b0acf))
+* plan leftovers from the week plan ([#35](https://github.com/leapingfrogs/mealplan/issues/35)) ([092a5e6](https://github.com/leapingfrogs/mealplan/commit/092a5e6e3023b835d0038204eb8a763931f2ff05))
+* remove members, leave, transfer ownership and delete households ([#25](https://github.com/leapingfrogs/mealplan/issues/25)) ([b9ffbb1](https://github.com/leapingfrogs/mealplan/commit/b9ffbb1ec0f2fd8d77d3b10f8e6ae6d328f43edf))
+
 ## [0.1.2](https://github.com/leapingfrogs/mealplan/compare/v0.1.1...v0.1.2) (2026-10-19)
 
 
