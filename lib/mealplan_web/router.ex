@@ -106,6 +106,8 @@ defmodule MealplanWeb.Router do
       live "/meals", MealLive.Index, :index
       live "/meals/archived", MealLive.Archived, :index
       live "/meals/:id", MealLive.Show, :show
+      live "/shopping", ShoppingLive.Index, :index
+      live "/shopping/staples", ShoppingLive.Staples, :index
     end
 
     # Owner-only downloads (ADR 14); checked in the controller.
