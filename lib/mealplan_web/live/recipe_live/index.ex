@@ -11,9 +11,14 @@ defmodule MealplanWeb.RecipeLive.Index do
       <.header>
         Recipes
         <:actions>
-          <.button navigate={~p"/recipes/new"} variant="primary" id="new-recipe">
-            <.icon name="hero-plus" class="size-4" /> New recipe
-          </.button>
+          <div class="flex gap-2">
+            <.link navigate={~p"/recipes/archived"} id="archived-recipes" class="btn btn-ghost">
+              Archived
+            </.link>
+            <.button navigate={~p"/recipes/new"} variant="primary" id="new-recipe">
+              <.icon name="hero-plus" class="size-4" /> New recipe
+            </.button>
+          </div>
         </:actions>
       </.header>
 

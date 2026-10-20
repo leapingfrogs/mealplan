@@ -37,14 +37,68 @@ defmodule MealplanWeb.MealLive.Show do
       <% else %>
         <.header>
           <span id="meal-name">{@meal.name}</span>
-          <:subtitle>{recipe_summary(@meal.meal_recipes)}</:subtitle>
+          <:subtitle>
+            {recipe_summary(@meal.meal_recipes)}
+            <span :if={@meal.archived_at} id="archived-badge" class="badge badge-ghost badge-sm ml-1">
+              archived
+            </span>
+          </:subtitle>
           <:actions>
-            <.button id="rename-meal" phx-click="edit_name">
-              <.icon name="hero-pencil-square" class="size-4" /> Rename
-            </.button>
+            <%= if @meal.archived_at do %>
+              <.button id="restore-meal" phx-click="restore" variant="primary">
+                <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
+              </.button>
+            <% else %>
+              <div class="flex gap-2">
+                <.button id="rename-meal" phx-click="edit_name">
+                  <.icon name="hero-pencil-square" class="size-4" /> Rename
+                </.button>
+                <button
+                  type="button"
+                  id="delete-meal"
+                  class="btn btn-ghost text-error"
+                  phx-click="delete"
+                >
+                  <.icon name="hero-trash" class="size-4" /> Delete
+                </button>
+              </div>
+            <% end %>
           </:actions>
         </.header>
       <% end %>
+
+      <div
+        :if={@deleting}
+        id="delete-meal-panel"
+        role="alert"
+        class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
+      >
+        <div class="space-y-1 text-sm">
+          <p :if={@deleting.upcoming != []}>
+            It's planned for {Enum.map_join(
+              @deleting.upcoming,
+              ", ",
+              &"#{Calendar.strftime(&1.date, "%a %-d %b")} #{String.downcase(&1.meal_slot.name)}"
+            )}; those will be removed from the plan.
+          </p>
+          <p :if={@deleting.archive?}>
+            Past plans used it, so it will be archived: hidden from lists and pickers, but kept in
+            history, and you can restore it.
+          </p>
+          <p :if={not @deleting.archive? and @deleting.upcoming == []}>It isn't in any plan.</p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_delete">Cancel</button>
+          <button
+            type="button"
+            id="confirm-delete-meal"
+            class="btn btn-sm btn-error"
+            phx-click="confirm_delete"
+          >
+            {if @deleting.archive?, do: "Archive meal", else: "Delete meal"}
+          </button>
+        </div>
+      </div>
 
       <section class="space-y-3">
         <h2 class="text-lg font-semibold">Recipes</h2>
@@ -72,7 +126,7 @@ defmodule MealplanWeb.MealLive.Show do
               <span class="block truncate font-medium">{meal_recipe.recipe.name}</span>
               <span class="text-sm text-base-content/60">Serves {meal_recipe.recipe.servings}</span>
             </.link>
-            <span class="flex shrink-0 items-center">
+            <span :if={is_nil(@meal.archived_at)} class="flex shrink-0 items-center">
               <button
                 type="button"
                 class="btn btn-ghost btn-sm btn-square"
@@ -108,7 +162,7 @@ defmodule MealplanWeb.MealLive.Show do
         </ol>
       </section>
 
-      <section class="space-y-3 pt-2">
+      <section :if={is_nil(@meal.archived_at)} class="space-y-3 pt-2">
         <h2 class="text-lg font-semibold">Add a recipe</h2>
         <.form for={@picker_form} id="recipe-picker" phx-change="find" phx-submit="find">
           <label class="input w-full">
@@ -165,11 +219,59 @@ defmodule MealplanWeb.MealLive.Show do
 
     {:ok,
      socket
-     |> assign(page_title: meal.name, rename_form: nil, picker_query: "")
+     |> assign(page_title: meal.name, rename_form: nil, picker_query: "", deleting: nil)
      |> assign_meal(meal)}
   end
 
   @impl true
+  def handle_event("delete", _params, socket) do
+    {:noreply,
+     assign(socket,
+       deleting: Meals.deletion_preview(socket.assigns.current_scope, socket.assigns.meal)
+     )}
+  end
+
+  def handle_event("cancel_delete", _params, socket),
+    do: {:noreply, assign(socket, deleting: nil)}
+
+  def handle_event("confirm_delete", _params, socket) do
+    %{meal: meal} = socket.assigns
+
+    case Meals.delete_meal(socket.assigns.current_scope, meal) do
+      {:ok, :archived} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{meal.name} archived. Past plans keep it.")
+         |> push_navigate(to: ~p"/meals")}
+
+      {:ok, :deleted} ->
+        {:noreply,
+         socket |> put_flash(:info, "#{meal.name} deleted.") |> push_navigate(to: ~p"/meals")}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket |> assign(deleting: nil) |> put_flash(:error, "Couldn't delete that meal.")}
+    end
+  end
+
+  def handle_event("restore", _params, socket) do
+    case Meals.restore_meal(socket.assigns.current_scope, socket.assigns.meal.id) do
+      {:ok, meal} ->
+        {:noreply, socket |> put_flash(:info, "#{meal.name} restored.") |> reload()}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Another meal is already called #{socket.assigns.meal.name}. Rename it first."
+         )}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Couldn't restore that meal.")}
+    end
+  end
+
   def handle_event("edit_name", _params, socket) do
     {:noreply, assign(socket, rename_form: to_form(Meals.change_meal(socket.assigns.meal)))}
   end

@@ -11,6 +11,11 @@ defmodule MealplanWeb.MealLive.Index do
       <.header>
         Meals
         <:subtitle>What you plan: one or more recipes, or none at all, like "Eat out".</:subtitle>
+        <:actions>
+          <.link navigate={~p"/meals/archived"} id="archived-meals" class="btn btn-ghost">
+            Archived
+          </.link>
+        </:actions>
       </.header>
 
       <.form

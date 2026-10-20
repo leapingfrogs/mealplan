@@ -11,6 +11,9 @@ defmodule Mealplan.Households do
   alias Mealplan.Households.Household
   alias Mealplan.Households.Invitation
   alias Mealplan.Households.MealSlot
+  alias Mealplan.Planning
+  alias Mealplan.Planning.PlannedMeal
+  alias Mealplan.Planning.SlotSkip
   alias Mealplan.RateLimit
   alias Mealplan.Repo
 
@@ -222,27 +225,88 @@ defmodule Mealplan.Households do
 
   @doc """
   Deletes a meal slot. Owner only, and a household keeps at least one slot.
-  A slot with planned meals is refused with `{:error, :in_use}` (archiving
-  it instead is a later task).
+
+  Meals planned in it from today on must go first: `upcoming` is another
+  slot's id to move them to (same dates), or `:remove`; without either the
+  delete is refused with `{:error, :has_upcoming}`. Skips from today on go.
+  A slot used by plans before today is then archived, so past weeks keep
+  its name; otherwise it is deleted. Returns the slot (`archived_at` set
+  when archived).
   """
-  def delete_meal_slot(%Scope{household: %Household{id: household_id}} = scope, slot_id) do
+  def delete_meal_slot(
+        %Scope{household: %Household{id: household_id}} = scope,
+        slot_id,
+        upcoming \\ nil
+      ) do
+    today = Planning.today(scope)
+
     change_slots(scope, fn ->
       with {:ok, slot} <- fetch_meal_slot(scope, slot_id),
-           :ok <- ensure_another_slot(household_id) do
-        delete_unused_slot(slot)
+           :ok <- ensure_another_slot(household_id),
+           :ok <- clear_upcoming(scope, slot, today, upcoming) do
+        retire_slot(slot, today)
       end
     end)
   end
 
-  defp delete_unused_slot(slot) do
-    slot
-    |> Ecto.Changeset.change()
-    |> Ecto.Changeset.foreign_key_constraint(:id, name: :planned_meals_meal_slot_id_fkey)
-    |> Repo.delete()
-    |> case do
-      {:ok, slot} -> {:ok, slot}
-      {:error, _changeset} -> {:error, :in_use}
+  @doc "The meals planned in a slot from today on, with what deleting it will do."
+  def slot_deletion_preview(%Scope{} = scope, slot_id) do
+    today = Planning.today(scope)
+
+    with {:ok, slot} <- fetch_meal_slot(scope, slot_id) do
+      {:ok,
+       %{
+         slot: slot,
+         upcoming: slot |> upcoming_in_slot(today) |> Repo.preload(:meal),
+         archive?: used_before?(slot, today)
+       }}
     end
+  end
+
+  defp upcoming_in_slot(slot, today) do
+    Repo.all(
+      from pm in PlannedMeal,
+        where: pm.meal_slot_id == ^slot.id and pm.date >= ^today,
+        order_by: [asc: pm.date, asc: pm.position]
+    )
+  end
+
+  defp used_before?(slot, today) do
+    Repo.exists?(from pm in PlannedMeal, where: pm.meal_slot_id == ^slot.id and pm.date < ^today)
+  end
+
+  defp clear_upcoming(scope, slot, today, choice) do
+    case {upcoming_in_slot(slot, today), choice} do
+      {[], _choice} ->
+        :ok
+
+      {planned_meals, :remove} ->
+        Enum.each(planned_meals, &({:ok, _} = Planning.remove_planned_meal(scope, &1.id)))
+
+      {planned_meals, target_id} when is_binary(target_id) and target_id != slot.id ->
+        move_all(scope, planned_meals, target_id)
+
+      {_planned_meals, _no_choice} ->
+        {:error, :has_upcoming}
+    end
+  end
+
+  defp move_all(scope, planned_meals, target_id) do
+    Enum.reduce_while(planned_meals, :ok, fn planned_meal, :ok ->
+      case Planning.move_planned_meal(scope, planned_meal.id, planned_meal.date, target_id) do
+        {:ok, _moved} -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp retire_slot(slot, today) do
+    {_count, _} =
+      Repo.delete_all(from s in SlotSkip, where: s.meal_slot_id == ^slot.id and s.date >= ^today)
+
+    if used_before?(slot, today),
+      do: slot |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second)) |> Repo.update(),
+      else: Repo.delete(slot)
   end
 
   @doc """

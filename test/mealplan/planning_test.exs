@@ -715,12 +715,6 @@ defmodule Mealplan.PlanningTest do
   end
 
   describe "deleting" do
-    test "a slot with planned meals is refused", %{scope: scope, slots: slots} = c do
-      plan(scope, @mon, slots["snack"], c.chilli_meal)
-      assert Households.delete_meal_slot(scope, slots["snack"].id) == {:error, :in_use}
-      assert {:ok, _} = Households.delete_meal_slot(scope, slots["breakfast"].id)
-    end
-
     test "the household takes its whole plan with it", %{scope: scope, slots: slots} = c do
       monday = plan(scope, @mon, slots["dinner"], c.chilli_meal)
       wednesday = plan(scope, @wed, slots["lunch"], c.chilli_meal)

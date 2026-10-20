@@ -17,13 +17,65 @@ defmodule MealplanWeb.RecipeLive.Show do
 
       <.header>
         <span id="recipe-name">{@recipe.name}</span>
-        <:subtitle>Serves {@recipe.servings}</:subtitle>
+        <:subtitle>
+          Serves {@recipe.servings}
+          <span :if={@recipe.archived_at} id="archived-badge" class="badge badge-ghost badge-sm ml-1">
+            archived
+          </span>
+        </:subtitle>
         <:actions>
-          <.button navigate={~p"/recipes/#{@recipe}/edit"} id="edit-recipe">
-            <.icon name="hero-pencil-square" class="size-4" /> Edit
-          </.button>
+          <%= if @recipe.archived_at do %>
+            <.button id="restore-recipe" phx-click="restore" variant="primary">
+              <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
+            </.button>
+          <% else %>
+            <div class="flex gap-2">
+              <.button navigate={~p"/recipes/#{@recipe}/edit"} id="edit-recipe">
+                <.icon name="hero-pencil-square" class="size-4" /> Edit
+              </.button>
+              <button
+                type="button"
+                id="delete-recipe"
+                class="btn btn-ghost text-error"
+                phx-click="delete"
+              >
+                <.icon name="hero-trash" class="size-4" /> Delete
+              </button>
+            </div>
+          <% end %>
         </:actions>
       </.header>
+
+      <div
+        :if={@deleting}
+        id="delete-recipe-panel"
+        role="alert"
+        class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
+      >
+        <div class="space-y-1 text-sm">
+          <p :if={@deleting.meals != []}>
+            It will be taken out of {Enum.map_join(@deleting.meals, ", ", & &1.name)}.
+          </p>
+          <p :if={@deleting.archive?}>
+            Past plans used it, so it will be archived: hidden from lists and pickers, but kept
+            in history, and you can restore it.
+          </p>
+          <p :if={not @deleting.archive? and @deleting.meals == []}>
+            It isn't in any meal or plan.
+          </p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_delete">Cancel</button>
+          <button
+            type="button"
+            id="confirm-delete-recipe"
+            class="btn btn-sm btn-error"
+            phx-click="confirm_delete"
+          >
+            {if @deleting.archive?, do: "Archive recipe", else: "Delete recipe"}
+          </button>
+        </div>
+      </div>
 
       <div
         :if={@parsed.ingredients == [] and not steps?(@parsed)}
@@ -56,13 +108,62 @@ defmodule MealplanWeb.RecipeLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
+    socket = assign(socket, deleting: nil)
     {:ok, assign_recipe(socket, Recipes.get_recipe!(socket.assigns.current_scope, id))}
+  end
+
+  @impl true
+  def handle_event("delete", _params, socket) do
+    {:noreply,
+     assign(socket,
+       deleting: Recipes.deletion_preview(socket.assigns.current_scope, socket.assigns.recipe)
+     )}
+  end
+
+  def handle_event("cancel_delete", _params, socket),
+    do: {:noreply, assign(socket, deleting: nil)}
+
+  def handle_event("confirm_delete", _params, socket) do
+    %{recipe: recipe} = socket.assigns
+
+    case Recipes.delete_recipe(socket.assigns.current_scope, recipe) do
+      {:ok, :archived} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{recipe.name} archived. Past plans keep it.")
+         |> push_navigate(to: ~p"/recipes")}
+
+      {:ok, :deleted} ->
+        {:noreply,
+         socket |> put_flash(:info, "#{recipe.name} deleted.") |> push_navigate(to: ~p"/recipes")}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket |> assign(deleting: nil) |> put_flash(:error, "Couldn't delete that recipe.")}
+    end
+  end
+
+  def handle_event("restore", _params, socket) do
+    case Recipes.restore_recipe(socket.assigns.current_scope, socket.assigns.recipe.id) do
+      {:ok, recipe} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{recipe.name} restored.")
+         |> assign_recipe(Recipes.get_recipe!(socket.assigns.current_scope, recipe.id))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Couldn't restore that recipe.")}
+    end
   end
 
   # Another member edited this recipe.
   @impl true
   def handle_info({:recipe_changed, id}, %{assigns: %{recipe: %{id: id}}} = socket) do
     {:noreply, assign_recipe(socket, Recipes.get_recipe!(socket.assigns.current_scope, id))}
+  rescue
+    Ecto.NoResultsError ->
+      {:noreply,
+       socket |> put_flash(:info, "That recipe was deleted.") |> push_navigate(to: ~p"/recipes")}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}

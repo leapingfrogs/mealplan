@@ -109,12 +109,12 @@ defmodule MealplanWeb.PlanLive.Week do
           </h2>
           <ul class="space-y-2">
             <li
-              :for={slot <- @week.slots}
+              :for={slot <- display_slots(@week, @cells, day)}
               id={"cell-#{day}-#{slot.id}"}
               class="group flex flex-col gap-1 sm:flex-row sm:items-start lg:flex-col"
             >
               <span class="w-24 shrink-0 pt-0.5 text-xs font-medium uppercase tracking-wide text-base-content/50 lg:w-auto">
-                {slot.name}
+                {slot.name}<span :if={slot.archived_at} class="normal-case tracking-normal"> (removed)</span>
               </span>
               <div class="min-w-0 flex-1 lg:w-full">
                 <ul :if={cell_meals(@cells, day, slot) != []} class="mb-1 flex flex-wrap gap-1">
@@ -147,41 +147,43 @@ defmodule MealplanWeb.PlanLive.Week do
                     </button>
                   </li>
                 </ul>
-                <%= if MapSet.member?(@skips, {day, slot.id}) do %>
-                  <div class="flex items-center gap-1 text-sm text-base-content/50">
-                    <span class="italic">Skipped</span>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs"
-                      phx-click="unskip"
-                      phx-value-date={day}
-                      phx-value-slot={slot.id}
-                    >
-                      Undo
-                    </button>
-                  </div>
-                <% else %>
-                  <div class="flex gap-1 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs text-base-content/60"
-                      phx-click="add"
-                      phx-value-date={day}
-                      phx-value-slot={slot.id}
-                    >
-                      <.icon name="hero-plus" class="size-3.5" /> Add
-                    </button>
-                    <button
-                      :if={cell_meals(@cells, day, slot) == []}
-                      type="button"
-                      class="btn btn-ghost btn-xs text-base-content/50"
-                      phx-click="skip"
-                      phx-value-date={day}
-                      phx-value-slot={slot.id}
-                    >
-                      Skip
-                    </button>
-                  </div>
+                <%= cond do %>
+                  <% slot.archived_at -> %>
+                  <% MapSet.member?(@skips, {day, slot.id}) -> %>
+                    <div class="flex items-center gap-1 text-sm text-base-content/50">
+                      <span class="italic">Skipped</span>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        phx-click="unskip"
+                        phx-value-date={day}
+                        phx-value-slot={slot.id}
+                      >
+                        Undo
+                      </button>
+                    </div>
+                  <% true -> %>
+                    <div class="flex gap-1 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs text-base-content/60"
+                        phx-click="add"
+                        phx-value-date={day}
+                        phx-value-slot={slot.id}
+                      >
+                        <.icon name="hero-plus" class="size-3.5" /> Add
+                      </button>
+                      <button
+                        :if={cell_meals(@cells, day, slot) == []}
+                        type="button"
+                        class="btn btn-ghost btn-xs text-base-content/50"
+                        phx-click="skip"
+                        phx-value-date={day}
+                        phx-value-slot={slot.id}
+                      >
+                        Skip
+                      </button>
+                    </div>
                 <% end %>
               </div>
             </li>
@@ -382,7 +384,7 @@ defmodule MealplanWeb.PlanLive.Week do
         :if={@pending_move}
         id="confirm-move"
         role="alert"
-        class="alert alert-warning flex-col items-stretch"
+        class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
       >
         <p class="text-sm">{links_warning(@planned_meal)} Moving it may undo those leftover links.</p>
         <div class="flex justify-end gap-2">
@@ -764,7 +766,7 @@ defmodule MealplanWeb.PlanLive.Week do
              date,
              slot_id
            ) do
-      slot = Enum.find(socket.assigns.week.slots, &(&1.id == moved.meal_slot_id))
+      slot = find_slot(socket.assigns.week, moved.meal_slot_id)
 
       {:noreply,
        socket
@@ -1044,19 +1046,28 @@ defmodule MealplanWeb.PlanLive.Week do
   defp count(1, noun), do: "1 #{noun}"
   defp count(n, noun), do: "#{n} #{noun}s"
 
+  # Active slots, plus archived ones on days they still hold meals.
+  defp display_slots(week, cells, day) do
+    retired = Enum.filter(week.retired_slots, &Map.has_key?(cells, {day, &1.id}))
+    Enum.sort_by(week.slots ++ retired, & &1.position)
+  end
+
+  defp find_slot(week, slot_id),
+    do: Enum.find(week.slots ++ week.retired_slots, &(&1.id == slot_id))
+
   defp cell_meals(cells, day, slot), do: Map.get(cells, {day, slot.id}, [])
 
   defp sheet_meal(%{mode: :edit, id: id}, week), do: Enum.find(week.planned_meals, &(&1.id == id))
   defp sheet_meal(_sheet, _week), do: nil
 
   defp sheet_title(%{mode: :add, date: date, slot_id: slot_id}, week) do
-    slot = Enum.find(week.slots, &(&1.id == slot_id))
+    slot = find_slot(week, slot_id)
     "Add to #{slot && slot.name} on #{Calendar.strftime(date, "%A %-d %b")}"
   end
 
   defp sheet_title(%{mode: :edit} = sheet, week) do
     planned_meal = sheet_meal(sheet, week)
-    slot = Enum.find(week.slots, &(&1.id == planned_meal.meal_slot_id))
+    slot = find_slot(week, planned_meal.meal_slot_id)
 
     "#{planned_meal.meal.name}, #{Calendar.strftime(planned_meal.date, "%a %-d %b")}#{slot && " " <> String.downcase(slot.name)}"
   end

@@ -96,6 +96,20 @@ defmodule Mealplan.Planning do
 
     active = MapSet.new(slots, & &1.id)
 
+    # Archived slots still hold this week's history.
+    retired_ids =
+      planned_meals
+      |> Enum.map(& &1.meal_slot_id)
+      |> Enum.uniq()
+      |> Enum.reject(&MapSet.member?(active, &1))
+
+    retired_slots =
+      Repo.all(
+        from s in MealSlot,
+          where: s.id in ^retired_ids,
+          order_by: [asc: s.position, asc: s.inserted_at]
+      )
+
     planned =
       planned_meals
       |> Enum.map(&{&1.date, &1.meal_slot_id})
@@ -107,6 +121,7 @@ defmodule Mealplan.Planning do
       start: start,
       days: Enum.to_list(Date.range(start, stop)),
       slots: slots,
+      retired_slots: retired_slots,
       planned_meals: planned_meals,
       skips: skips,
       planned: planned,
