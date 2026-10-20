@@ -107,3 +107,11 @@ Meals in an import keep their recipes: a meal that refers to a recipe in the sam
 As the owner of a household I am able to download a single recipe as a `.cook` file from its page.
 
 Archived recipes and meals are not exported. Plans, meal slots and members are not part of import or export.
+
+## Meal slot tags (iteration 3)
+
+As a user within a household I am able to tag a meal with the meal slots it suits (for example Breakfast, or Lunch and Dinner). A meal can have any number of slot tags, or none.
+
+As a user planning a week, when I add a meal to a slot, the meals tagged for that slot are listed first. Other meals and recipes are still available but start collapsed, so choosing is quicker and meals come before recipes.
+
+Exports include each meal's slot tags, and imports bring them back: a tag naming one of our slots (ignoring case) tags the meal with it. For an imported meal with no tags, or with tags that don't match any of our slots, I can choose which of our slots to tag it with in the import preview, including several at once.

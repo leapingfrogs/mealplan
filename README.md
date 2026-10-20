@@ -11,8 +11,8 @@ week. Deleting follows an archive rule that keeps history. The owner can
 export recipes and meals as a Cooklang recipe folder and import them, or any
 Cooklang files, with a preview of every change. Built on iteration 0:
 invite-only magic-link login, admin error dashboard, a hardened production
-stack with backups, CI, releases and one-command deploys. Next: shopping lists
-(iteration 3).
+stack with backups, CI, releases and one-command deploys. Next: tagging meals
+with the slots they suit (iteration 3), then shopping lists (iteration 4).
 
 ## Stack
 
