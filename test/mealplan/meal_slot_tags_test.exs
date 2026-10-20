@@ -73,6 +73,22 @@ defmodule Mealplan.MealSlotTagsTest do
     assert id == slots["snack"].id
   end
 
+  test "planning with tag: true adds the slot once, and plans untagged in an archived slot",
+       %{scope: scope, slots: slots, meal: meal} do
+    today = Planning.today(scope)
+    dinner = slots["dinner"].id
+    {:ok, _} = Planning.plan_meal(scope, today, dinner, meal.id, nil, tag: true)
+    {:ok, _} = Planning.plan_meal(scope, today, dinner, meal.id, nil, tag: true)
+    assert slot_names(scope, meal) == ["Dinner"]
+
+    {:ok, past} = Planning.plan_meal(scope, Date.add(today, -2), slots["snack"].id, meal.id)
+    {:ok, %{archived_at: %DateTime{}}} = Households.delete_meal_slot(scope, slots["snack"].id)
+    other = meal_fixture(scope, %{name: "Toast"})
+
+    assert {:ok, _} = Planning.change_meal(scope, past.id, other.id, tag: true)
+    assert slot_names(scope, other) == []
+  end
+
   test "deleting a slot or a meal outright removes its tags", %{
     scope: scope,
     slots: slots,

@@ -216,7 +216,14 @@ defmodule MealplanWeb.PlanLive.Week do
                   </span>
                 </button>
               </div>
-              <.meal_picker :if={@tab == "new"} query={@query} results={@results} recipes?={true} />
+              <.meal_picker
+                :if={@tab == "new"}
+                query={@query}
+                results={@results}
+                recipes?={true}
+                expanded={@expanded}
+                slot_name={sheet_slot_name(@sheet, @week)}
+              />
               <.leftover_picker :if={@tab == "leftovers"} sources={@sources} />
             </div>
           <% %{mode: :edit} -> %>
@@ -229,6 +236,8 @@ defmodule MealplanWeb.PlanLive.Week do
               sources={@sources}
               cooking={@cooking}
               pending_move={@pending_move}
+              expanded={@expanded}
+              slot_name={sheet_slot_name(@sheet, @week)}
             />
         <% end %>
       </.sheet>
@@ -290,6 +299,8 @@ defmodule MealplanWeb.PlanLive.Week do
   attr :sources, :list, required: true
   attr :cooking, :map, required: true
   attr :pending_move, :any, required: true
+  attr :expanded, :any, required: true
+  attr :slot_name, :string, required: true
 
   defp edit_sheet(assigns) do
     ~H"""
@@ -360,7 +371,13 @@ defmodule MealplanWeb.PlanLive.Week do
           <.icon name="hero-chevron-down" class="size-4 transition-transform group-open:rotate-180" />
         </summary>
         <div class="px-3 pb-3">
-          <.meal_picker query={@query} results={@results} recipes?={false} />
+          <.meal_picker
+            query={@query}
+            results={@results}
+            recipes?={false}
+            expanded={@expanded}
+            slot_name={@slot_name}
+          />
         </div>
       </details>
 
@@ -487,7 +504,11 @@ defmodule MealplanWeb.PlanLive.Week do
   attr :query, :string, required: true
   attr :results, :map, required: true
   attr :recipes?, :boolean, required: true
+  attr :expanded, :any, required: true
+  attr :slot_name, :string, required: true
 
+  # Meals for the slot first and open; other meals and recipes collapsed.
+  # Searching opens any section with matches.
   defp meal_picker(assigns) do
     ~H"""
     <div class="space-y-2">
@@ -507,46 +528,119 @@ defmodule MealplanWeb.PlanLive.Week do
           />
         </label>
       </form>
-      <ul id="sheet-results" class="divide-y divide-base-300 rounded-box border border-base-300">
-        <li :for={meal <- @results.meals} id={"pick-meal-#{meal.id}"}>
-          <button
-            type="button"
-            class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-base-200"
-            phx-click="pick_meal"
-            phx-value-id={meal.id}
-          >
-            <span class="min-w-0 truncate">{meal.name}</span>
-            <span class="shrink-0 text-xs text-base-content/50">{recipe_count(meal.recipe_count)}</span>
-          </button>
-        </li>
-        <li :for={recipe <- (@recipes? && @results.recipes) || []} id={"pick-recipe-#{recipe.id}"}>
-          <button
-            type="button"
-            class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-base-200"
-            phx-click="pick_recipe"
-            phx-value-id={recipe.id}
-          >
-            <span class="min-w-0 truncate">{recipe.name}</span>
-            <span class="badge badge-ghost badge-sm shrink-0">recipe</span>
-          </button>
-        </li>
-        <li :if={new_meal_name(@query, @results)} id="pick-new">
-          <button
-            type="button"
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-primary transition-colors hover:bg-base-200"
-            phx-click="pick_new"
-          >
-            <.icon name="hero-plus" class="size-4" /> New meal “{new_meal_name(@query, @results)}”
-          </button>
-        </li>
-        <li
-          :if={@results.meals == [] and (@results.recipes == [] or not @recipes?) and @query == ""}
-          class="px-3 py-4 text-center text-sm text-base-content/60"
+
+      <div id="sheet-results" class="space-y-2">
+        <.pick_section
+          id="slot-meals"
+          name="slot"
+          title={"Meals for #{@slot_name}"}
+          count={length(@results.slot_meals)}
+          open={open?(@expanded, "slot", @query, @results.slot_meals)}
         >
-          No meals yet. Type a name to create one.
-        </li>
-      </ul>
+          <.meal_choice :for={meal <- @results.slot_meals} meal={meal} />
+          <li :if={@results.slot_meals == []} class="px-3 py-3 text-sm text-base-content/60">
+            <%= if @query == "" do %>
+              No meals tagged for {@slot_name} yet. Plan a recipe or a new meal here and it will be, or tag meals on their page.
+            <% else %>
+              No {@slot_name} meals match.
+            <% end %>
+          </li>
+        </.pick_section>
+
+        <.pick_section
+          :if={@results.other_meals != []}
+          id="other-meals"
+          name="other"
+          title="Other meals"
+          count={length(@results.other_meals)}
+          open={open?(@expanded, "other", @query, @results.other_meals)}
+        >
+          <.meal_choice :for={meal <- @results.other_meals} meal={meal} />
+        </.pick_section>
+
+        <.pick_section
+          :if={@recipes? and @results.recipes != []}
+          id="recipe-choices"
+          name="recipes"
+          title="Recipes"
+          count={length(@results.recipes)}
+          open={open?(@expanded, "recipes", @query, @results.recipes)}
+        >
+          <li :for={recipe <- @results.recipes} id={"pick-recipe-#{recipe.id}"}>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-base-200"
+              phx-click="pick_recipe"
+              phx-value-id={recipe.id}
+            >
+              <span class="min-w-0 truncate">{recipe.name}</span>
+              <span class="badge badge-ghost badge-sm shrink-0">recipe</span>
+            </button>
+          </li>
+        </.pick_section>
+
+        <button
+          :if={new_meal_name(@query, @results)}
+          type="button"
+          id="pick-new"
+          class="flex w-full items-center gap-2 rounded-box border border-dashed border-primary/40 px-3 py-2 text-left text-primary transition-colors hover:bg-base-200"
+          phx-click="pick_new"
+        >
+          <.icon name="hero-plus" class="size-4" /> New meal “{new_meal_name(@query, @results)}”
+        </button>
+      </div>
     </div>
+    """
+  end
+
+  defp open?(expanded, name, query, items),
+    do: MapSet.member?(expanded, name) or (query != "" and items != [])
+
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :title, :string, required: true
+  attr :count, :integer, required: true
+  attr :open, :boolean, required: true
+  slot :inner_block, required: true
+
+  defp pick_section(assigns) do
+    ~H"""
+    <section id={@id} class="overflow-hidden rounded-box border border-base-300">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-base-200"
+        phx-click="toggle_section"
+        phx-value-section={@name}
+        aria-expanded={to_string(@open)}
+      >
+        <span>{@title} <span class="font-normal text-base-content/50">({@count})</span></span>
+        <.icon
+          name="hero-chevron-down"
+          class={["size-4 transition-transform", @open && "rotate-180"]}
+        />
+      </button>
+      <ul class={["divide-y divide-base-300 border-t border-base-300", !@open && "hidden"]}>
+        {render_slot(@inner_block)}
+      </ul>
+    </section>
+    """
+  end
+
+  attr :meal, :any, required: true
+
+  defp meal_choice(assigns) do
+    ~H"""
+    <li id={"pick-meal-#{@meal.id}"}>
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-base-200"
+        phx-click="pick_meal"
+        phx-value-id={@meal.id}
+      >
+        <span class="min-w-0 truncate">{@meal.name}</span>
+        <span class="shrink-0 text-xs text-base-content/50">{recipe_count(@meal.recipe_count)}</span>
+      </button>
+    </li>
     """
   end
 
@@ -558,7 +652,8 @@ defmodule MealplanWeb.PlanLive.Week do
        sheet: nil,
        servings: 1,
        query: "",
-       results: %{meals: [], recipes: []},
+       results: %{slot_meals: [], other_meals: [], recipes: []},
+       expanded: MapSet.new(["slot"]),
        move_form: nil,
        tab: "new",
        sources: [],
@@ -625,6 +720,7 @@ defmodule MealplanWeb.PlanLive.Week do
        socket
        |> assign(
          sheet: %{mode: :add, date: date, slot_id: slot_id},
+         expanded: MapSet.new(["slot"]),
          servings: socket.assigns.current_scope.household.usually_feeding,
          tab: "new"
        )
@@ -648,6 +744,7 @@ defmodule MealplanWeb.PlanLive.Week do
          socket
          |> assign(
            sheet: %{mode: :edit, id: planned_meal.id},
+           expanded: MapSet.new(["slot"]),
            move_form: move_form(planned_meal),
            pending_move: nil
          )
@@ -657,6 +754,18 @@ defmodule MealplanWeb.PlanLive.Week do
   end
 
   def handle_event("close_sheet", _params, socket), do: {:noreply, assign(socket, sheet: nil)}
+
+  def handle_event("toggle_section", %{"section" => section}, socket)
+      when section in ~w(slot other recipes) do
+    expanded = socket.assigns.expanded
+
+    expanded =
+      if MapSet.member?(expanded, section),
+        do: MapSet.delete(expanded, section),
+        else: MapSet.put(expanded, section)
+
+    {:noreply, assign(socket, expanded: expanded)}
+  end
 
   def handle_event("sheet_search", %{"q" => query}, socket), do: {:noreply, search(socket, query)}
 
@@ -678,6 +787,8 @@ defmodule MealplanWeb.PlanLive.Week do
     end
   end
 
+  # Picking an existing meal doesn't tag it; a recipe planned directly or a
+  # new meal is tagged with the slot, so the slot's list learns.
   def handle_event("pick_meal", %{"id" => meal_id}, socket), do: pick(socket, {:meal, meal_id})
 
   def handle_event("pick_recipe", %{"id" => recipe_id}, socket),
@@ -796,10 +907,10 @@ defmodule MealplanWeb.PlanLive.Week do
   # A meal or recipe chosen in the sheet: plan it (adding) or switch to it
   # (editing).
   defp pick(%{assigns: %{sheet: %{mode: :add} = sheet}} = socket, {kind, id}) do
-    plan = if kind == :meal, do: &Planning.plan_meal/5, else: &Planning.plan_recipe/5
+    plan = if kind == :meal, do: &Planning.plan_meal/6, else: &Planning.plan_recipe/6
 
     socket.assigns.current_scope
-    |> plan.(sheet.date, sheet.slot_id, id, socket.assigns.servings)
+    |> plan.(sheet.date, sheet.slot_id, id, socket.assigns.servings, tag: true)
     |> after_change(socket, close?: true)
   end
 
@@ -807,7 +918,7 @@ defmodule MealplanWeb.PlanLive.Week do
     case sheet_meal(socket.assigns.sheet, socket.assigns.week) do
       %{} = planned_meal ->
         socket.assigns.current_scope
-        |> Planning.change_meal(planned_meal.id, meal_id)
+        |> Planning.change_meal(planned_meal.id, meal_id, tag: true)
         |> after_change(socket, close?: true)
 
       nil ->
@@ -831,13 +942,40 @@ defmodule MealplanWeb.PlanLive.Week do
     scope = socket.assigns.current_scope
     query = String.trim(query)
 
+    slot_id = sheet_slot_id(socket.assigns.sheet, socket.assigns.week)
+
+    {slot_meals, other_meals} =
+      scope
+      |> Meals.list_meals(query)
+      |> Enum.split_with(fn meal -> Enum.any?(meal.slots, &(&1.id == slot_id)) end)
+
     assign(socket,
       query: query,
       results: %{
-        meals: scope |> Meals.list_meals(query) |> Enum.take(8),
-        recipes: scope |> Recipes.list_recipes(query) |> Enum.take(8)
+        slot_meals: slot_meals,
+        other_meals: other_meals,
+        recipes: Recipes.list_recipes(scope, query)
       }
     )
+  end
+
+  # The slot the sheet is planning into, whose meals are listed first.
+  defp sheet_slot_id(%{mode: :add, slot_id: slot_id}, _week), do: slot_id
+
+  defp sheet_slot_id(%{mode: :edit} = sheet, week) do
+    case sheet_meal(sheet, week) do
+      nil -> nil
+      planned_meal -> planned_meal.meal_slot_id
+    end
+  end
+
+  defp sheet_slot_id(nil, _week), do: nil
+
+  defp sheet_slot_name(sheet, week) do
+    case find_slot(week, sheet_slot_id(sheet, week)) do
+      nil -> "this slot"
+      slot -> slot.name
+    end
   end
 
   defp move_form(planned_meal) do
@@ -1078,7 +1216,12 @@ defmodule MealplanWeb.PlanLive.Week do
 
   # Offer to create a meal named as typed, unless one already has that name.
   defp new_meal_name(query, results) do
-    taken? = Enum.any?(results.meals, &(String.downcase(&1.name) == String.downcase(query)))
+    taken? =
+      Enum.any?(
+        results.slot_meals ++ results.other_meals,
+        &(String.downcase(&1.name) == String.downcase(query))
+      )
+
     if query != "" and not taken?, do: query
   end
 

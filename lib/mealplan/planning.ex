@@ -167,18 +167,21 @@ defmodule Mealplan.Planning do
   @doc """
   Plans a meal in a slot on a date, after any already there, for `servings`
   (default: the household's usual number). Planning in a skipped slot
-  removes the skip.
+  removes the skip. With `tag: true` the meal is also tagged with the slot
+  (used when planning from the add sheet).
   """
   def plan_meal(
         %Scope{household: household} = scope,
         %Date{} = date,
         slot_id,
         meal_id,
-        servings \\ nil
+        servings \\ nil,
+        opts \\ []
       ) do
     fn ->
       with {:ok, slot} <- fetch_slot(household.id, slot_id),
-           {:ok, meal} <- fetch_meal(household.id, meal_id) do
+           {:ok, meal} <- fetch_meal(household.id, meal_id),
+           :ok <- maybe_tag(scope, meal, slot.id, opts) do
         :ok = delete_skip(household.id, date, slot.id)
 
         %PlannedMeal{
@@ -199,21 +202,35 @@ defmodule Mealplan.Planning do
   @doc """
   Plans a recipe directly: uses the household's one-recipe meal for it
   (preferring one named after the recipe), creating one named after the
-  recipe if there is none.
+  recipe if there is none. Takes `tag: true` like `plan_meal/6`.
   """
   def plan_recipe(
         %Scope{household: household} = scope,
         %Date{} = date,
         slot_id,
         recipe_id,
-        servings \\ nil
+        servings \\ nil,
+        opts \\ []
       ) do
     Repo.transact(fn ->
       with {:ok, recipe} <- fetch_recipe(household.id, recipe_id),
            {:ok, meal} <- recipe_meal(scope, recipe) do
-        plan_meal(scope, date, slot_id, meal.id, servings)
+        plan_meal(scope, date, slot_id, meal.id, servings, opts)
       end
     end)
+  end
+
+  # An archived slot (a past plan) isn't offered as a tag, so it plans untagged.
+  defp maybe_tag(scope, meal, slot_id, opts) do
+    if Keyword.get(opts, :tag, false) do
+      case Meals.add_slot(scope, meal.id, slot_id) do
+        {:ok, _meal} -> :ok
+        {:error, :not_found} -> :ok
+        error -> error
+      end
+    else
+      :ok
+    end
   end
 
   defp recipe_meal(%Scope{household: household} = scope, recipe) do
@@ -276,12 +293,14 @@ defmodule Mealplan.Planning do
 
   @doc """
   Changes which meal is planned. Leftover links for recipes the new meal
-  doesn't have are removed.
+  doesn't have are removed. With `tag: true` the new meal is also tagged with
+  the planned slot, if it isn't already.
   """
-  def change_meal(%Scope{household: household} = scope, planned_meal_id, meal_id) do
+  def change_meal(%Scope{household: household} = scope, planned_meal_id, meal_id, opts \\ []) do
     fn ->
       with {:ok, planned_meal} <- fetch_planned_meal(scope, planned_meal_id),
            {:ok, meal} <- fetch_meal(household.id, meal_id),
+           :ok <- maybe_tag(scope, meal, planned_meal.meal_slot_id, opts),
            {:ok, planned_meal} <-
              planned_meal |> Ecto.Changeset.change(meal_id: meal.id) |> Repo.update() do
         :ok = prune_leftovers(planned_meal.id)
