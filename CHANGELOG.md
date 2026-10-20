@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/leapingfrogs/mealplan/compare/v0.3.0...v0.4.0) (2026-10-20)
+
+
+### Features
+
+* carry meal slot tags through export and import ([#51](https://github.com/leapingfrogs/mealplan/issues/51)) ([732ea00](https://github.com/leapingfrogs/mealplan/commit/732ea003ff5c06072d84b014e03d4df797eaa2b0))
+* list the slot's meals first in the add sheet ([#50](https://github.com/leapingfrogs/mealplan/issues/50)) ([e20299b](https://github.com/leapingfrogs/mealplan/commit/e20299bc518a598f7dedd35be1f828f8dfa8b6bf))
+* tag meals with the slots they suit ([#48](https://github.com/leapingfrogs/mealplan/issues/48)) ([e39725e](https://github.com/leapingfrogs/mealplan/commit/e39725e53d73dd36fc773e87008ce9ebaaaabd16))
+
 ## [0.3.0](https://github.com/leapingfrogs/mealplan/compare/v0.2.0...v0.3.0) (2026-10-20)
 
 
