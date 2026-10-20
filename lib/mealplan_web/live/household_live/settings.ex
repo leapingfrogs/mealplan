@@ -96,9 +96,9 @@ defmodule MealplanWeb.HouseholdLive.Settings do
           <li
             :for={member <- @members}
             id={"member-#{member.id}"}
-            class="flex justify-between gap-3 px-4 py-3"
+            class="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
           >
-            <span class="truncate">
+            <span class="min-w-0 truncate">
               {member.email}<span
                 :if={member.id == @current_scope.user.id}
                 class="text-base-content/60"
@@ -107,8 +107,41 @@ defmodule MealplanWeb.HouseholdLive.Settings do
             <span :if={member.id == @current_scope.household.owner_id} class="badge badge-ghost">
               owner
             </span>
+            <span :if={@owner? and member.id != @current_scope.household.owner_id} class="flex gap-1">
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                phx-click="transfer"
+                phx-value-id={member.id}
+                data-confirm={"Make #{member.email} the owner? You'll become a regular member."}
+              >
+                Make owner
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm text-error"
+                phx-click="remove"
+                phx-value-id={member.id}
+                data-confirm={"Remove #{member.email} from the household?"}
+              >
+                Remove
+              </button>
+            </span>
           </li>
         </ul>
+        <button
+          :if={!@owner?}
+          type="button"
+          id="leave-household"
+          class="btn btn-ghost btn-sm text-error"
+          phx-click="leave"
+          data-confirm={"Leave #{@current_scope.household.name}? You'll lose access to its recipes and plans."}
+        >
+          Leave household
+        </button>
+        <p :if={@owner? and length(@members) > 1} class="text-sm text-base-content/60">
+          To leave, make someone else the owner first.
+        </p>
       </section>
 
       <section :if={@owner?} class="space-y-3 pt-4">
@@ -186,6 +219,33 @@ defmodule MealplanWeb.HouseholdLive.Settings do
             </button>
           </li>
         </ul>
+      </section>
+
+      <section :if={@owner?} id="delete-household" class="space-y-3 pt-8">
+        <h2 class="text-lg font-semibold text-error">Delete household</h2>
+        <p class="text-sm text-base-content/60">
+          Deletes all of the household's recipes, meals and plans, and removes every member.
+          This can't be undone. Type <strong>{@current_scope.household.name}</strong> to confirm.
+        </p>
+        <.form
+          for={%{}}
+          as={:delete}
+          id="delete-form"
+          phx-submit="delete"
+          class="flex flex-wrap items-start gap-2"
+        >
+          <div class="flex-1 min-w-48">
+            <.input
+              type="text"
+              id="delete-confirmation"
+              name="confirmation"
+              value=""
+              autocomplete="off"
+              aria-label="Household name"
+            />
+          </div>
+          <.button class="btn btn-error">Delete household</.button>
+        </.form>
       </section>
     </Layouts.app>
     """
@@ -297,12 +357,80 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     {:noreply, socket |> put_flash(:info, "Invitation declined.") |> assign_lists()}
   end
 
+  def handle_event("remove", %{"id" => id}, socket) do
+    case Households.remove_member(socket.assigns.current_scope, id) do
+      :ok ->
+        {:noreply, socket |> put_flash(:info, "Member removed.") |> assign_lists()}
+
+      {:error, _reason} ->
+        {:noreply, socket |> put_flash(:error, "Couldn't remove that member.") |> assign_lists()}
+    end
+  end
+
+  def handle_event("transfer", %{"id" => id}, socket) do
+    case Households.transfer_ownership(socket.assigns.current_scope, id) do
+      {:ok, household} ->
+        {:noreply,
+         socket |> put_flash(:info, "Ownership transferred.") |> refresh_household(household)}
+
+      {:error, _reason} ->
+        {:noreply, socket |> put_flash(:error, "Couldn't transfer ownership.") |> assign_lists()}
+    end
+  end
+
+  def handle_event("leave", _params, socket) do
+    case Households.leave_household(socket.assigns.current_scope) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "You've left #{socket.assigns.current_scope.household.name}.")
+         |> redirect(to: ~p"/welcome")}
+
+      {:error, :owner_must_transfer} ->
+        {:noreply, put_flash(socket, :error, "Make someone else the owner before leaving.")}
+
+      {:error, _reason} ->
+        {:noreply, redirect(socket, to: ~p"/welcome")}
+    end
+  end
+
+  def handle_event("delete", %{"confirmation" => confirmation}, socket) do
+    case Households.delete_household(socket.assigns.current_scope, confirmation) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{socket.assigns.current_scope.household.name} was deleted.")
+         |> redirect(to: ~p"/welcome")}
+
+      {:error, :confirmation_mismatch} ->
+        {:noreply,
+         put_flash(socket, :error, "The name you typed doesn't match. Nothing was deleted.")}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "Only the owner can delete the household.")}
+    end
+  end
+
+  # After a transfer the scope's household has a new owner, which changes
+  # what this page shows.
+  defp refresh_household(socket, household) do
+    scope = %{socket.assigns.current_scope | household: household}
+
+    socket
+    |> assign(current_scope: scope, owner?: Households.owner?(scope))
+    |> assign_lists()
+    |> assign_form(Households.change_household(household))
+  end
+
   # The scope's household is refreshed by the :require_household hook; keep
   # the form in step when the owner saved from another tab or device.
   @impl true
   def handle_info({:household_updated, household}, socket) do
-    {:noreply, assign_form(socket, Households.change_household(household))}
+    {:noreply, refresh_household(socket, household)}
   end
+
+  # Another member left or was removed.
+  def handle_info({:member_removed, _user_id}, socket), do: {:noreply, assign_lists(socket)}
 
   # Someone joined, or invitations changed (possibly from another device).
   def handle_info({:household_changed, _what}, socket), do: {:noreply, assign_lists(socket)}
