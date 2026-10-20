@@ -190,3 +190,27 @@ database.
    ingredient key, and shown collapsed rather than hidden.
 7. **Optional ingredients are listed**, marked optional.
 8. **Starting a new list keeps unticked manual items** and clears the rest.
+
+## Changes made while building
+
+The sections above describe the plan as agreed, with the ticking rules
+already updated; this is what differs or was added, for anyone comparing with
+the code.
+
+- **Hidden ticks are kept** (changed in review): a ticked line that drops off
+  the list, because the range or the plan changed, keeps its tick until a new
+  list is started, so it comes back ticked unless more is needed.
+- **Ticks store the quantity** as well as the amount shown
+  (`Quantity.to_map/1`), and "more since ticked" compares amounts as shown:
+  1.8 onions isn't more than 1.5, since both show as 2.
+- **`Planning.cooking/3`** computes a range with each meal's recipes as on
+  its date; the week view's `cooking/1` shares the per-recipe maths.
+- **Units:** a unit we don't know shows as written in the recipe, plural when
+  a recipe wrote it that way (`3 tins`), otherwise singular (`3 clove`).
+  "some" shows only when a line has no other amount.
+- **Staples group:** each staple has **Need some**, which adds it as a manual
+  item for this trip, rather than undoing the staple.
+- **Ticked group:** open while it holds three or fewer, collapsed after,
+  toggled by its header.
+- **Range shortcuts:** "This week" is today to Sunday, "Next week" is next
+  Monday to Sunday.
