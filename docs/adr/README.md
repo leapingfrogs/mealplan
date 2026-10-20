@@ -19,3 +19,4 @@ status. The format follows [MADR](https://adr.github.io/madr/) in spirit.
 | [10](0010-self-hosted-error-tracking.md) | Self-hosted error tracking with ErrorTracker |
 | [11](0011-supply-chain-pinning.md) | Supply chain: pin everything, take updates after a cooldown |
 | [12](0012-postgres-runs-as-uid-10999.md) | Database and backup containers run as uid 10999 |
+| [13](0013-own-cooklang-parser.md) | Write our own Cooklang parser with NimbleParsec |

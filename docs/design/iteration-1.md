@@ -274,8 +274,8 @@ All confirmed on 20 October 2026.
 4. **Households have a time zone** for "today" and the current week, set from
    the browser at creation and editable by the owner.
 5. **Write our own Cooklang parser** with NimbleParsec, tested against
-   Cooklang's official spec tests. The first task checks Hex for an existing
-   parser before writing one.
+   Cooklang's official spec tests. Hex had no maintained pure-Elixir parser
+   ([ADR 13](../adr/0013-own-cooklang-parser.md)).
 6. **Store parsed ingredients as rows**, so the shopping list merges and scales
    in SQL.
 7. **The archive cutoff is "before today".** Plans dated today or later are
