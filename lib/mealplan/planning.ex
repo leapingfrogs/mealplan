@@ -141,7 +141,49 @@ defmodule Mealplan.Planning do
   def cooking(%Week{planned_meals: planned_meals}) do
     for planned_meal <- planned_meals,
         %MealRecipe{recipe: recipe} <- planned_meal.meal.meal_recipes,
-        not leftover?(planned_meal, recipe.id) do
+        entry <- cooking_entry(planned_meal, recipe),
+        do: entry
+  end
+
+  @doc """
+  What to cook from `first` to `last` (inclusive), as `cooking/1`, but with
+  each meal's recipes as they were on its date (`Mealplan.Meals.recipes_on/3`),
+  so a later edit to a meal doesn't change what an earlier plan cooked. The
+  planned meals come with their slot loaded, in date and slot order.
+  """
+  def cooking(%Scope{household: %Household{id: household_id}}, %Date{} = first, %Date{} = last) do
+    planned_meals =
+      Repo.all(
+        from pm in PlannedMeal,
+          join: s in assoc(pm, :meal_slot),
+          where: pm.household_id == ^household_id and pm.date >= ^first and pm.date <= ^last,
+          order_by: [pm.date, s.position, pm.position],
+          preload: [meal_slot: s, leftovers: [], leftovers_taken: :planned_meal]
+      )
+
+    recipes_by_meal =
+      from(mr in MealRecipe,
+        join: r in assoc(mr, :recipe),
+        where: mr.meal_id in ^Enum.map(planned_meals, & &1.meal_id),
+        order_by: mr.position,
+        select: {mr.meal_id, mr.removed_on, r}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &Tuple.delete_at(&1, 0))
+
+    for planned_meal <- planned_meals,
+        {removed_on, recipe} <- Map.get(recipes_by_meal, planned_meal.meal_id, []),
+        is_nil(removed_on) or Date.after?(removed_on, planned_meal.date),
+        entry <- cooking_entry(planned_meal, recipe),
+        do: entry
+  end
+
+  # The recipe as cooked fresh in the planned meal, or nothing when it's
+  # eaten there as leftovers.
+  defp cooking_entry(planned_meal, recipe) do
+    if leftover?(planned_meal, recipe.id) do
+      []
+    else
       taken =
         for leftover <- planned_meal.leftovers_taken,
             leftover.recipe_id == recipe.id,
@@ -149,12 +191,14 @@ defmodule Mealplan.Planning do
 
       cooked = planned_meal.servings + Enum.sum(taken)
 
-      %{
-        planned_meal: planned_meal,
-        recipe: recipe,
-        cooked_servings: cooked,
-        scale: Decimal.div(cooked, recipe.servings)
-      }
+      [
+        %{
+          planned_meal: planned_meal,
+          recipe: recipe,
+          cooked_servings: cooked,
+          scale: Decimal.div(cooked, recipe.servings)
+        }
+      ]
     end
   end
 
