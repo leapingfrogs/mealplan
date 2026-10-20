@@ -76,9 +76,9 @@ section in `meals.menu`:
 
 | Where | Adds |
 |---|---|
-| `Meals` | `set_slots(scope, meal_id, slot_ids)`, `list_meals/2` and `get_meal!/2` load `slots` (active, in order), `meals_for_slot/2` |
-| `Planning` | `plan_meal` and `plan_recipe` take `tag: true` from the sheet to tag the meal with the slot |
-| `Transfer` | the `> Slots:` note in export and reading; `ImportedMeal.slot_names`; `ImportItem.slot_ids` (chosen) and `unmatched_slots`; applying tags |
+| `Meals` | `set_slots(scope, meal_id, slot_ids)` and `add_slot/3`; `list_meals/2` and `get_meal!/2` load `slots` (active, in order) |
+| `Planning` | `plan_meal`, `plan_recipe` and `change_meal` take `tag: true` from the sheet to tag the meal with the slot |
+| `Transfer` | the `> Slots:` note in export and reading; `ImportedMeal.slot_names`; `ImportItem.slot_ids` (chosen, via `choose_slots/3`) and `unmatched_slots`; applying tags |
 
 ## Tasks
 
@@ -110,3 +110,26 @@ section in `meals.menu`:
 4. **Any member can tag meals**, like other meal edits.
 5. **Bulk "set slots for meals without any"** in the import preview, as well as
    per-meal choices.
+
+## Changes made while building
+
+The sections above describe the plan as agreed, with decision 2 and the
+import matching already updated; this is what differs or was added, for
+anyone comparing with the code.
+
+- **Planning tags every meal it plans** (decision 2, changed in review): an
+  existing meal picked from the sheet gains the slot too, as does a meal
+  swapped in from the edit sheet (`Planning.change_meal/4`). Tags are only
+  added, never removed, through `Meals.add_slot/3`, which leaves an
+  already-tagged meal alone. A past plan in an archived slot plans untagged.
+- **No `meals_for_slot/2`:** the sheet splits one `Meals.list_meals/2` search
+  by tag instead.
+- **The sheet:** the edit sheet's "change meal" uses the same sections
+  (without recipes); recipes are no longer capped at eight now they start
+  collapsed; the slot section says when nothing is tagged for it.
+- **Imports keep our tags:** a meal without a `Slots:` note that matches one
+  of ours starts with our tags, so Replace or Keep both doesn't clear them.
+  Slot names are de-duplicated and capped at 20 per meal, and a slot deleted
+  between the preview and the import is dropped instead of failing it.
+- **Renaming a slot** needs nothing: tags reference the slot by id, so meals
+  show and export the new name (covered by a test).
