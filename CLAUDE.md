@@ -61,7 +61,7 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
 | `Households` | households, invitations, membership and ownership, meal slots |
 | `Recipes` | recipes and their ingredient rows (rebuilt from the source on save) |
 | `Cooklang` | the parser (ADR 13): pure, never raises, no database |
-| `Meals` | meals and the recipes in them, with history |
+| `Meals` | meals and the recipes in them, with history; slot tags (by slot id) |
 | `Planning` | planned meals, leftovers, skips, weeks, servings maths, copying |
 | `Transfer` | export as a Cooklang folder (ADR 14); reading, matching and applying imports |
 
