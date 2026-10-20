@@ -30,6 +30,16 @@ defmodule MealplanWeb.RecipeLive.Show do
             </.button>
           <% else %>
             <div class="flex gap-2">
+              <a
+                :if={@owner?}
+                href={~p"/recipes/#{@recipe}/download"}
+                id="download-recipe"
+                class="btn btn-ghost"
+                download
+                aria-label="Download as a Cooklang file"
+              >
+                <.icon name="hero-arrow-down-tray" class="size-4" /><span class="hidden sm:inline">.cook</span>
+              </a>
               <.button navigate={~p"/recipes/#{@recipe}/edit"} id="edit-recipe">
                 <.icon name="hero-pencil-square" class="size-4" /> Edit
               </.button>
@@ -108,7 +118,12 @@ defmodule MealplanWeb.RecipeLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    socket = assign(socket, deleting: nil)
+    socket =
+      assign(socket,
+        deleting: nil,
+        owner?: Mealplan.Households.owner?(socket.assigns.current_scope)
+      )
+
     {:ok, assign_recipe(socket, Recipes.get_recipe!(socket.assigns.current_scope, id))}
   end
 

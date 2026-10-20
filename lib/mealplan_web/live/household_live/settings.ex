@@ -425,6 +425,22 @@ defmodule MealplanWeb.HouseholdLive.Settings do
         </ul>
       </section>
 
+      <section :if={@owner?} id="transfer" class="space-y-3 pt-4">
+        <h2 class="text-lg font-semibold">Import and export</h2>
+        <p class="text-sm text-base-content/60">
+          Download your recipes and meals as Cooklang files, to keep a copy or use them in
+          other Cooklang apps.
+        </p>
+        <a
+          href={~p"/household/export"}
+          id="export-household"
+          class="btn btn-soft btn-primary"
+          download
+        >
+          <.icon name="hero-arrow-down-tray" class="size-4" /> Export recipes and meals
+        </a>
+      </section>
+
       <section :if={@owner?} id="delete-household" class="space-y-3 pt-8">
         <h2 class="text-lg font-semibold text-error">Delete household</h2>
         <p class="text-sm text-base-content/60">
