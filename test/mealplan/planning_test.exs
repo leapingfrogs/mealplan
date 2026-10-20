@@ -45,6 +45,9 @@ defmodule Mealplan.PlanningTest do
     planned_meal
   end
 
+  defp planned(scope),
+    do: PlannedMeal |> Repo.all() |> Enum.filter(&(&1.household_id == scope.household.id))
+
   defp cooking(scope, date) do
     scope
     |> Planning.get_week(date)
@@ -453,6 +456,109 @@ defmodule Mealplan.PlanningTest do
       {:ok, _} = Planning.remove_planned_meal(scope, monday.id)
       assert Repo.aggregate(Leftover, :count) == 0
       assert Repo.get(PlannedMeal, wednesday.id)
+    end
+  end
+
+  describe "leftovers in one step" do
+    test "leftover_sources/4 lists earlier meals within 14 days with what they'll cook",
+         %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_rice, 4)
+      tuesday = plan(scope, @tue, slots["lunch"], c.chilli_meal, 2)
+      {:ok, _} = Planning.add_leftover(scope, tuesday.id, monday.id, c.chilli.id)
+      _later_same_day = plan(scope, @wed, slots["dinner"], c.chilli_salad, 3)
+      _too_old = plan(scope, Date.add(@wed, -15), slots["dinner"], c.chilli_meal, 3)
+
+      sources = Planning.leftover_sources(scope, @wed, slots["lunch"].id)
+
+      # Tuesday's chilli is itself leftovers, so Tuesday offers nothing.
+      assert [%{planned_meal: %{id: source_id}, recipes: recipes}] = sources
+      assert source_id == monday.id
+
+      assert Enum.map(recipes, &{&1.recipe.name, &1.cooked_servings}) ==
+               [{"Chilli", 6}, {"Rice", 4}]
+
+      assert Planning.leftover_sources(scope, @wed, slots["lunch"].id, monday.id) == []
+      assert Planning.leftover_sources(scope, @wed, "nope") == []
+    end
+
+    test "leftover_sources/4 lists a repeated meal once, as the latest",
+         %{scope: scope, slots: slots} = c do
+      for day <- [@mon, @tue, @wed], do: plan(scope, day, slots["breakfast"], c.chilli_meal, 2)
+      wed_breakfast = Enum.find(planned(scope), &(&1.date == @wed))
+
+      # The same meal with different fresh recipes stays separate.
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_rice, 4)
+      tuesday = plan(scope, @tue, slots["dinner"], c.chilli_rice, 2)
+      {:ok, _} = Planning.add_leftover(scope, tuesday.id, monday.id, c.chilli.id)
+
+      sources = Planning.leftover_sources(scope, @wed, slots["dinner"].id)
+
+      assert Enum.map(
+               sources,
+               &{&1.planned_meal.id, Enum.map(&1.recipes, fn r -> r.recipe.name end)}
+             ) ==
+               [
+                 {wed_breakfast.id, ["Chilli"]},
+                 {tuesday.id, ["Rice"]},
+                 {monday.id, ["Chilli", "Rice"]}
+               ]
+    end
+
+    test "plan_leftovers/6 plans a recipe as leftovers", %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_rice, 4)
+
+      assert {:ok, planned_meal} =
+               Planning.plan_leftovers(scope, @wed, slots["lunch"].id, monday.id, c.chilli.id, 2)
+
+      # The chilli's one-recipe meal, eaten as leftovers.
+      assert planned_meal.meal_id == c.chilli_meal.id
+
+      assert scope |> cooking(@mon) |> Enum.find(&(elem(&1, 1) == "Chilli")) ==
+               {monday.id, "Chilli", 6, "1.5"}
+
+      assert Planning.leftover_links(scope, monday.id) == 1
+      assert Planning.leftover_links(scope, planned_meal.id) == 1
+      assert Planning.leftover_links(scope, "nope") == 0
+    end
+
+    test "plan_leftovers/6 with :all makes every fresh recipe leftovers",
+         %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_rice, 4)
+
+      assert {:ok, planned_meal} =
+               Planning.plan_leftovers(scope, @wed, slots["lunch"].id, monday.id, :all, 2)
+
+      assert planned_meal.meal_id == c.chilli_rice.id
+
+      assert Enum.sort(cooking(scope, @mon)) ==
+               Enum.sort([{monday.id, "Chilli", 6, "1.5"}, {monday.id, "Rice", 6, "3"}])
+    end
+
+    test "plan_leftovers/6 is all or nothing", %{scope: scope, slots: slots} = c do
+      wednesday = plan(scope, @wed, slots["dinner"], c.chilli_meal, 4)
+
+      # Monday is earlier than the source: nothing is planned.
+      assert {:error, :not_earlier} =
+               Planning.plan_leftovers(scope, @mon, slots["lunch"].id, wednesday.id, :all)
+
+      assert {:error, :not_found} =
+               Planning.plan_leftovers(scope, @mon, slots["lunch"].id, Ecto.UUID.generate(), :all)
+
+      # A source whose only recipe is itself leftovers has nothing to share.
+      tuesday = plan(scope, @tue, slots["dinner"], c.chilli_meal)
+      thursday = plan(scope, Date.add(@mon, 3), slots["dinner"], c.chilli_meal)
+      {:ok, _} = Planning.add_leftover(scope, thursday.id, tuesday.id, c.chilli.id)
+
+      assert {:error, :nothing_to_share} =
+               Planning.plan_leftovers(
+                 scope,
+                 Date.add(@mon, 4),
+                 slots["lunch"].id,
+                 thursday.id,
+                 :all
+               )
+
+      assert length(planned(scope)) == 3
     end
   end
 

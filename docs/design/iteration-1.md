@@ -230,8 +230,9 @@ reviewed; their content:
   meals show as chips with servings; leftovers are marked ↺. Unplanned slots
   show "+ Add" and "Skip". Tap a meal to edit, move or remove it.
 - **Add to a slot** (bottom sheet): "New meal" searches meals and recipes;
-  "Leftovers" lists recipes planned in the previous 14 days, showing what the
-  source meal will be cooked for. Servings stepper starting at the household's
+  "Leftovers" lists recipes planned in the previous 14 days (a meal repeated
+  on several days once, as the latest), showing what the source meal will be
+  cooked for. Servings stepper starting at the household's
   usual number.
 - **Recipe list** (`/recipes`): search by name or ingredient; serving size and
   ingredient count per row; link to archived recipes.

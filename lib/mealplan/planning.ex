@@ -81,8 +81,9 @@ defmodule Mealplan.Planning do
           where: pm.household_id == ^household_id and pm.date >= ^start and pm.date <= ^stop,
           order_by: [asc: pm.date, asc: pm.position, asc: pm.inserted_at],
           preload: [
-            leftovers: :source_planned_meal,
-            leftovers_taken: :planned_meal,
+            :meal_slot,
+            leftovers: [source_planned_meal: [:meal_slot, :meal]],
+            leftovers_taken: [planned_meal: [:meal_slot, :meal]],
             meal: [meal_recipes: :recipe]
           ]
       )
@@ -407,6 +408,119 @@ defmodule Mealplan.Planning do
         )
 
       notify({:ok, planned_meal}, scope)
+    end
+  end
+
+  @doc """
+  The planned meals a meal on `date` in `slot_id` could take leftovers from:
+  earlier ones within `leftover_days/0`, latest first, each with the
+  recipes it cooks fresh and what it will cook them for. Repeats of the same
+  meal offering the same recipes are listed once, as the latest:
+
+      [%{planned_meal: %PlannedMeal{}, recipes: [%{recipe: %Recipe{}, cooked_servings: 6}]}]
+
+  `except` leaves out a planned meal (the one being edited).
+  """
+  def leftover_sources(%Scope{household: household}, %Date{} = date, slot_id, except \\ nil) do
+    case fetch_slot(household.id, slot_id) do
+      {:ok, slot} ->
+        since = Date.add(date, -@leftover_days)
+
+        from(pm in PlannedMeal,
+          join: s in assoc(pm, :meal_slot),
+          where: pm.household_id == ^household.id and pm.date >= ^since and pm.date <= ^date,
+          order_by: [desc: pm.date, desc: s.position, desc: pm.position],
+          preload: [
+            meal_slot: s,
+            leftovers: [],
+            leftovers_taken: :planned_meal,
+            meal: [meal_recipes: :recipe]
+          ]
+        )
+        |> Repo.all()
+        |> Enum.filter(&(&1.id != except and earlier?(&1, %{date: date, meal_slot: slot})))
+        |> Enum.map(&%{planned_meal: &1, recipes: fresh_recipes(&1)})
+        |> Enum.reject(&(&1.recipes == []))
+        # Repeats (porridge every morning) collapse to the latest. A copy
+        # offering different recipes, because some of them are leftovers
+        # there, is kept.
+        |> Enum.uniq_by(&{&1.planned_meal.meal_id, Enum.map(&1.recipes, fn r -> r.recipe.id end)})
+
+      _not_found ->
+        []
+    end
+  end
+
+  defp fresh_recipes(planned_meal) do
+    for %MealRecipe{recipe: recipe} <- planned_meal.meal.meal_recipes,
+        not leftover?(planned_meal, recipe.id) do
+      taken =
+        for leftover <- planned_meal.leftovers_taken,
+            leftover.recipe_id == recipe.id,
+            do: leftover.planned_meal.servings
+
+      %{recipe: recipe, cooked_servings: planned_meal.servings + Enum.sum(taken)}
+    end
+  end
+
+  @doc """
+  Plans a meal of leftovers in a slot: `:all` plans the source's meal with
+  every recipe it cooks fresh as leftovers; a recipe id plans that recipe
+  (as with `plan_recipe/5`) as leftovers. All or nothing.
+  """
+  def plan_leftovers(%Scope{} = scope, %Date{} = date, slot_id, source_id, which, servings \\ nil) do
+    Repo.transact(fn ->
+      with {:ok, source} <- fetch_planned_meal(scope, source_id),
+           source = Repo.preload(source, [:leftovers, meal: :meal_recipes]),
+           {:ok, planned_meal, recipe_ids} <-
+             plan_for_leftovers(scope, date, slot_id, source, which, servings),
+           :ok <- add_leftovers(scope, planned_meal, source, recipe_ids) do
+        {:ok, planned_meal}
+      end
+    end)
+  end
+
+  defp plan_for_leftovers(scope, date, slot_id, source, :all, servings) do
+    recipe_ids =
+      for mr <- source.meal.meal_recipes, not leftover?(source, mr.recipe_id), do: mr.recipe_id
+
+    with {:ok, planned_meal} <- plan_meal(scope, date, slot_id, source.meal_id, servings) do
+      {:ok, planned_meal, recipe_ids}
+    end
+  end
+
+  defp plan_for_leftovers(scope, date, slot_id, _source, recipe_id, servings) do
+    with {:ok, planned_meal} <- plan_recipe(scope, date, slot_id, recipe_id, servings) do
+      {:ok, planned_meal, [recipe_id]}
+    end
+  end
+
+  defp add_leftovers(_scope, _planned_meal, _source, []), do: {:error, :nothing_to_share}
+
+  defp add_leftovers(scope, planned_meal, source, recipe_ids) do
+    Enum.reduce_while(recipe_ids, :ok, fn recipe_id, :ok ->
+      case add_leftover(scope, planned_meal.id, source.id, recipe_id) do
+        {:ok, _leftover} -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  @doc "How many leftover links a planned meal has, either way."
+  def leftover_links(%Scope{household: %Household{id: household_id}}, planned_meal_id) do
+    case cast_id(planned_meal_id) do
+      {:ok, id} ->
+        Repo.aggregate(
+          from(l in Leftover,
+            where:
+              l.household_id == ^household_id and
+                (l.planned_meal_id == ^id or l.source_planned_meal_id == ^id)
+          ),
+          :count
+        )
+
+      {:error, :not_found} ->
+        0
     end
   end
 

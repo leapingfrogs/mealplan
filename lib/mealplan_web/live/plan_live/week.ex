@@ -127,6 +127,13 @@ defmodule MealplanWeb.PlanLive.Week do
                       </span>
                       <span class="min-w-0 break-words">{planned_meal.meal.name}</span>
                       <span class="text-base-content/60 tabular-nums">×{planned_meal.servings}</span>
+                      <span
+                        :if={cooks(@cooks, planned_meal)}
+                        class="cooks badge badge-primary badge-soft badge-sm"
+                        title={"Cooked for #{cooks(@cooks, planned_meal)}, to leave leftovers"}
+                      >
+                        cooks {cooks(@cooks, planned_meal)}
+                      </span>
                     </button>
                   </li>
                 </ul>
@@ -180,7 +187,25 @@ defmodule MealplanWeb.PlanLive.Week do
                 <span class="text-sm font-medium">Servings</span>
                 <.stepper id="add-servings" value={@servings} event="adjust_servings" />
               </div>
-              <.meal_picker query={@query} results={@results} recipes?={true} />
+              <div role="tablist" class="tabs tabs-box tabs-sm">
+                <button
+                  :for={{tab, label} <- [{"new", "Meals"}, {"leftovers", "Leftovers"}]}
+                  type="button"
+                  role="tab"
+                  id={"sheet-tab-#{tab}"}
+                  class={["tab flex-1", @tab == tab && "tab-active"]}
+                  aria-selected={to_string(@tab == tab)}
+                  phx-click="sheet_tab"
+                  phx-value-tab={tab}
+                >
+                  {label}
+                  <span :if={tab == "leftovers" and @sources != []} class="ml-1 opacity-60">
+                    ({length(@sources)})
+                  </span>
+                </button>
+              </div>
+              <.meal_picker :if={@tab == "new"} query={@query} results={@results} recipes?={true} />
+              <.leftover_picker :if={@tab == "leftovers"} sources={@sources} />
             </div>
           <% %{mode: :edit} -> %>
             <.edit_sheet
@@ -189,10 +214,59 @@ defmodule MealplanWeb.PlanLive.Week do
               query={@query}
               results={@results}
               move_form={@move_form}
+              sources={@sources}
+              cooking={@cooking}
+              pending_move={@pending_move}
             />
         <% end %>
       </.sheet>
     </Layouts.app>
+    """
+  end
+
+  attr :sources, :list, required: true
+
+  # Earlier meals (within 14 days) whose recipes can be eaten as leftovers.
+  defp leftover_picker(assigns) do
+    ~H"""
+    <div id="leftover-sources" class="space-y-2">
+      <p :if={@sources == []} class="py-4 text-center text-sm text-base-content/60">
+        Nothing cooked in the 14 days before this to have leftovers from.
+      </p>
+      <section
+        :for={source <- @sources}
+        id={"source-#{source.planned_meal.id}"}
+        class="rounded-box border border-base-300 p-3"
+      >
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="min-w-0 truncate font-medium">{source.planned_meal.meal.name}</span>
+          <span class="shrink-0 text-xs text-base-content/60">{slot_label(source.planned_meal)}</span>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-1">
+          <button
+            :if={length(source.recipes) > 1}
+            type="button"
+            class="btn btn-sm btn-primary btn-soft"
+            phx-click="pick_leftovers"
+            phx-value-source={source.planned_meal.id}
+            phx-value-recipe="all"
+          >
+            ↺ All of it
+          </button>
+          <button
+            :for={%{recipe: recipe, cooked_servings: cooked} <- source.recipes}
+            type="button"
+            id={"source-#{source.planned_meal.id}-#{recipe.id}"}
+            class="btn btn-sm btn-ghost border-base-300"
+            phx-click="pick_leftovers"
+            phx-value-source={source.planned_meal.id}
+            phx-value-recipe={recipe.id}
+          >
+            ↺ {recipe.name} <span class="text-xs font-normal opacity-60">cooks {cooked}</span>
+          </button>
+        </div>
+      </section>
+    </div>
     """
   end
 
@@ -201,17 +275,72 @@ defmodule MealplanWeb.PlanLive.Week do
   attr :query, :string, required: true
   attr :results, :map, required: true
   attr :move_form, :any, required: true
+  attr :sources, :list, required: true
+  attr :cooking, :map, required: true
+  attr :pending_move, :any, required: true
 
   defp edit_sheet(assigns) do
     ~H"""
     <div class="space-y-5">
-      <p :if={@planned_meal.leftovers != []} id="sheet-leftovers" class="text-sm text-primary">
-        ↺ {leftovers_title(@planned_meal)}
-      </p>
       <div class="flex items-center justify-between gap-3">
         <span class="text-sm font-medium">Servings</span>
         <.stepper id="edit-servings" value={@planned_meal.servings} event="set_servings" />
       </div>
+
+      <section :if={@planned_meal.meal.meal_recipes != []} id="sheet-recipes" class="space-y-2">
+        <h3 class="text-sm font-medium">Recipes</h3>
+        <ul class="divide-y divide-base-300 rounded-box border border-base-300">
+          <li
+            :for={%{recipe: recipe} <- @planned_meal.meal.meal_recipes}
+            id={"sheet-recipe-#{recipe.id}"}
+            class="space-y-1 px-3 py-2"
+          >
+            <%= case leftover_for(@planned_meal, recipe.id) do %>
+              <% nil -> %>
+                <div class="flex items-baseline justify-between gap-2">
+                  <span class="font-medium">{recipe.name}</span>
+                  <span class="text-right text-xs text-base-content/60">
+                    {fresh_note(@planned_meal, recipe.id, @cooking)}
+                  </span>
+                </div>
+                <div
+                  :if={offers(@planned_meal, @sources, recipe.id) != []}
+                  class="flex flex-wrap items-center gap-1"
+                >
+                  <span class="text-xs text-base-content/60">Use leftovers from</span>
+                  <button
+                    :for={source <- offers(@planned_meal, @sources, recipe.id)}
+                    type="button"
+                    id={"use-#{recipe.id}-#{source.planned_meal.id}"}
+                    class="btn btn-xs btn-primary btn-soft"
+                    phx-click="use_leftovers"
+                    phx-value-source={source.planned_meal.id}
+                    phx-value-recipe={recipe.id}
+                  >
+                    ↺ {slot_label(source.planned_meal)}
+                  </button>
+                </div>
+              <% leftover -> %>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-medium">
+                    <span class="text-primary">↺</span> {recipe.name}
+                  </span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    phx-click="make_fresh"
+                    phx-value-recipe={recipe.id}
+                  >
+                    Make fresh
+                  </button>
+                </div>
+                <p class="text-xs text-primary">
+                  Leftovers from {slot_label(leftover.source_planned_meal)}
+                </p>
+            <% end %>
+          </li>
+        </ul>
+      </section>
 
       <details id="change-meal" class="group rounded-box border border-base-300">
         <summary class="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium">
@@ -239,12 +368,25 @@ defmodule MealplanWeb.PlanLive.Week do
         <.button class="btn mb-2">Move</.button>
       </.form>
 
+      <div
+        :if={@pending_move}
+        id="confirm-move"
+        role="alert"
+        class="alert alert-warning flex-col items-stretch"
+      >
+        <p class="text-sm">{links_warning(@planned_meal)} Moving it may undo those leftover links.</p>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_move">Cancel</button>
+          <button type="button" class="btn btn-sm btn-warning" phx-click="confirm_move">Move anyway</button>
+        </div>
+      </div>
+
       <button
         type="button"
         id="remove-planned-meal"
         class="btn btn-error btn-soft w-full"
         phx-click="remove"
-        data-confirm={"Remove #{@planned_meal.meal.name} from the plan?"}
+        data-confirm={remove_confirmation(@planned_meal)}
       >
         <.icon name="hero-trash" class="size-4" /> Remove from plan
       </button>
@@ -405,7 +547,12 @@ defmodule MealplanWeb.PlanLive.Week do
        servings: 1,
        query: "",
        results: %{meals: [], recipes: []},
-       move_form: nil
+       move_form: nil,
+       tab: "new",
+       sources: [],
+       cooking: %{},
+       cooks: %{},
+       pending_move: nil
      )}
   end
 
@@ -461,9 +608,11 @@ defmodule MealplanWeb.PlanLive.Week do
        socket
        |> assign(
          sheet: %{mode: :add, date: date, slot_id: slot_id},
-         servings: socket.assigns.current_scope.household.usually_feeding
+         servings: socket.assigns.current_scope.household.usually_feeding,
+         tab: "new"
        )
-       |> search("")}
+       |> search("")
+       |> assign_sources()}
     else
       _invalid -> {:noreply, socket}
     end
@@ -480,8 +629,13 @@ defmodule MealplanWeb.PlanLive.Week do
       planned_meal ->
         {:noreply,
          socket
-         |> assign(sheet: %{mode: :edit, id: planned_meal.id}, move_form: move_form(planned_meal))
-         |> search("")}
+         |> assign(
+           sheet: %{mode: :edit, id: planned_meal.id},
+           move_form: move_form(planned_meal),
+           pending_move: nil
+         )
+         |> search("")
+         |> assign_sources()}
     end
   end
 
@@ -521,8 +675,72 @@ defmodule MealplanWeb.PlanLive.Week do
     end
   end
 
-  def handle_event("move", %{"move" => %{"date" => date, "slot" => slot_id}}, socket) do
+  # A meal with leftover links asks for confirmation first.
+  def handle_event("move", %{"move" => %{"date" => _date, "slot" => _slot} = params}, socket) do
+    planned_meal = sheet_meal(socket.assigns.sheet, socket.assigns.week)
+
+    if planned_meal && linked?(planned_meal) && is_nil(socket.assigns.pending_move),
+      do: {:noreply, assign(socket, pending_move: params)},
+      else: move(socket, params)
+  end
+
+  def handle_event("confirm_move", _params, socket) do
+    case socket.assigns.pending_move do
+      nil -> {:noreply, socket}
+      params -> move(socket, params)
+    end
+  end
+
+  def handle_event("cancel_move", _params, socket),
+    do: {:noreply, assign(socket, pending_move: nil)}
+
+  def handle_event("sheet_tab", %{"tab" => tab}, socket) when tab in ~w(new leftovers),
+    do: {:noreply, assign(socket, tab: tab)}
+
+  def handle_event("pick_leftovers", %{"source" => source_id, "recipe" => recipe}, socket) do
+    case socket.assigns.sheet do
+      %{mode: :add, date: date, slot_id: slot_id} ->
+        which = if recipe == "all", do: :all, else: recipe
+
+        socket.assigns.current_scope
+        |> Planning.plan_leftovers(date, slot_id, source_id, which, socket.assigns.servings)
+        |> after_change(socket, close?: true)
+
+      _other ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("use_leftovers", %{"source" => source_id, "recipe" => recipe_id}, socket) do
+    with_sheet_meal(socket, fn planned_meal ->
+      Planning.add_leftover(socket.assigns.current_scope, planned_meal.id, source_id, recipe_id)
+    end)
+  end
+
+  def handle_event("make_fresh", %{"recipe" => recipe_id}, socket) do
+    with_sheet_meal(socket, fn planned_meal ->
+      Planning.remove_leftover(socket.assigns.current_scope, planned_meal.id, recipe_id)
+    end)
+  end
+
+  def handle_event("remove", _params, socket) do
+    case sheet_meal(socket.assigns.sheet, socket.assigns.week) do
+      %{} = planned_meal ->
+        socket.assigns.current_scope
+        |> Planning.remove_planned_meal(planned_meal.id)
+        |> after_change(socket, close?: true)
+
+      nil ->
+        {:noreply, assign(socket, sheet: nil)}
+    end
+  end
+
+  # The move itself, with a note when leftover links no longer applied.
+  defp move(socket, %{"date" => date, "slot" => slot_id}) do
+    scope = socket.assigns.current_scope
+
     with %{} = planned_meal <- sheet_meal(socket.assigns.sheet, socket.assigns.week),
+         links = Planning.leftover_links(scope, planned_meal.id),
          {:ok, date} <- Date.from_iso8601(date),
          {:ok, moved} <-
            Planning.move_planned_meal(
@@ -537,24 +755,24 @@ defmodule MealplanWeb.PlanLive.Week do
        socket
        |> put_flash(
          :info,
-         "Moved to #{Calendar.strftime(moved.date, "%a %-d %b")}#{slot && ", " <> slot.name}."
+         "Moved to #{Calendar.strftime(moved.date, "%a %-d %b")}#{slot && ", " <> slot.name}." <>
+           undone_links(links - Planning.leftover_links(scope, moved.id))
        )
-       |> assign(sheet: nil)
+       |> assign(sheet: nil, pending_move: nil)
        |> reload()}
     else
-      _error -> after_change({:error, :invalid}, socket, close?: false)
+      _error -> after_change({:error, :invalid}, assign(socket, pending_move: nil), close?: false)
     end
   end
 
-  def handle_event("remove", _params, socket) do
-    case sheet_meal(socket.assigns.sheet, socket.assigns.week) do
-      %{} = planned_meal ->
-        socket.assigns.current_scope
-        |> Planning.remove_planned_meal(planned_meal.id)
-        |> after_change(socket, close?: true)
+  defp undone_links(0), do: ""
+  defp undone_links(1), do: " One leftover link no longer applied."
+  defp undone_links(count), do: " #{count} leftover links no longer applied."
 
-      nil ->
-        {:noreply, assign(socket, sheet: nil)}
+  defp with_sheet_meal(socket, change) do
+    case sheet_meal(socket.assigns.sheet, socket.assigns.week) do
+      nil -> {:noreply, assign(socket, sheet: nil)}
+      planned_meal -> planned_meal |> change.() |> after_change(socket, close?: false)
     end
   end
 
@@ -639,22 +857,53 @@ defmodule MealplanWeb.PlanLive.Week do
 
     case socket.assigns.sheet do
       %{mode: :edit} = sheet ->
-        if sheet_meal(sheet, socket.assigns.week), do: socket, else: assign(socket, sheet: nil)
+        if sheet_meal(sheet, socket.assigns.week),
+          do: assign_sources(socket),
+          else: assign(socket, sheet: nil)
 
-      _other ->
+      %{mode: :add} ->
+        assign_sources(socket)
+
+      nil ->
         socket
     end
+  end
+
+  # What the open sheet can take leftovers from.
+  defp assign_sources(%{assigns: %{sheet: %{mode: :add} = sheet}} = socket) do
+    assign(socket,
+      sources: Planning.leftover_sources(socket.assigns.current_scope, sheet.date, sheet.slot_id)
+    )
+  end
+
+  defp assign_sources(%{assigns: %{sheet: %{mode: :edit} = sheet}} = socket) do
+    planned_meal = sheet_meal(sheet, socket.assigns.week)
+
+    sources =
+      Planning.leftover_sources(
+        socket.assigns.current_scope,
+        planned_meal.date,
+        planned_meal.meal_slot_id,
+        planned_meal.id
+      )
+
+    assign(socket, sources: sources)
   end
 
   defp load(socket, start) do
     scope = socket.assigns.current_scope
     week = Planning.get_week(scope, start)
 
+    cooking =
+      Map.new(Planning.cooking(week), &{{&1.planned_meal.id, &1.recipe.id}, &1.cooked_servings})
+
     assign(socket,
       week: week,
       today: Planning.today(scope),
       cells: Enum.group_by(week.planned_meals, &{&1.date, &1.meal_slot_id}),
       skips: MapSet.new(week.skips, &{&1.date, &1.meal_slot_id}),
+      cooking: cooking,
+      cooks: cooks_by_meal(week, cooking),
       page_title: "Week of " <> Calendar.strftime(start, "%-d %b")
     )
   end
@@ -673,6 +922,88 @@ defmodule MealplanWeb.PlanLive.Week do
   defp date_range(%Week{start: start}) do
     stop = Date.add(start, 6)
     Calendar.strftime(start, "%a %-d %b") <> " – " <> Calendar.strftime(stop, "%a %-d %b %Y")
+  end
+
+  # The most any recipe in a planned meal is cooked for, when that is more
+  # than its planned servings (leftovers are taken from it).
+  defp cooks_by_meal(week, cooking) do
+    for planned_meal <- week.planned_meals,
+        cooked = cooking_max(cooking, planned_meal),
+        cooked > planned_meal.servings,
+        into: %{},
+        do: {planned_meal.id, cooked}
+  end
+
+  defp cooking_max(cooking, planned_meal) do
+    planned_meal.meal.meal_recipes
+    |> Enum.map(&Map.get(cooking, {planned_meal.id, &1.recipe_id}, 0))
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp cooks(cooks, planned_meal), do: Map.get(cooks, planned_meal.id)
+
+  defp linked?(planned_meal),
+    do: planned_meal.leftovers != [] or planned_meal.leftovers_taken != []
+
+  defp leftover_for(planned_meal, recipe_id),
+    do: Enum.find(planned_meal.leftovers, &(&1.recipe_id == recipe_id))
+
+  defp taken(planned_meal, recipe_id),
+    do: for(l <- planned_meal.leftovers_taken, l.recipe_id == recipe_id, do: l.planned_meal)
+
+  defp fresh_note(planned_meal, recipe_id, cooking) do
+    case taken(planned_meal, recipe_id) do
+      [] ->
+        "cooked fresh"
+
+      eaters ->
+        "cooks #{Map.get(cooking, {planned_meal.id, recipe_id})} · leftovers for " <>
+          Enum.map_join(eaters, ", ", &slot_label/1)
+    end
+  end
+
+  # Earlier meals to take this recipe from, unless others take it from here.
+  defp offers(planned_meal, sources, recipe_id) do
+    if taken(planned_meal, recipe_id) == [],
+      do:
+        Enum.filter(sources, fn source ->
+          Enum.any?(source.recipes, &(&1.recipe.id == recipe_id))
+        end),
+      else: []
+  end
+
+  defp slot_label(planned_meal) do
+    Calendar.strftime(planned_meal.date, "%a %-d %b") <>
+      " " <> String.downcase(planned_meal.meal_slot.name)
+  end
+
+  defp links_warning(planned_meal) do
+    feeds =
+      planned_meal.leftovers_taken |> Enum.map(& &1.planned_meal) |> Enum.uniq_by(& &1.id)
+
+    sources =
+      planned_meal.leftovers |> Enum.map(& &1.source_planned_meal) |> Enum.uniq_by(& &1.id)
+
+    [
+      feeds != [] && "Its leftovers feed #{Enum.map_join(feeds, ", ", &slot_label/1)}.",
+      sources != [] && "It eats leftovers from #{Enum.map_join(sources, ", ", &slot_label/1)}."
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" ")
+  end
+
+  defp remove_confirmation(planned_meal) do
+    feeds =
+      planned_meal.leftovers_taken |> Enum.map(& &1.planned_meal) |> Enum.uniq_by(& &1.id)
+
+    case feeds do
+      [] ->
+        "Remove #{planned_meal.meal.name} from the plan?"
+
+      feeds ->
+        "Remove #{planned_meal.meal.name} from the plan? " <>
+          "#{Enum.map_join(feeds, ", ", &slot_label/1)} will then be cooked fresh instead."
+    end
   end
 
   defp cell_meals(cells, day, slot), do: Map.get(cells, {day, slot.id}, [])

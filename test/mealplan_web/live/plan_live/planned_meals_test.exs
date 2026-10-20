@@ -231,7 +231,12 @@ defmodule MealplanWeb.PlanLive.PlannedMealsTest do
       {:ok, view, _html} = live(conn, "/plan/#{monday}")
 
       view |> element("#planned-#{eater.id} button") |> render_click()
-      assert has_element?(view, "#sheet-leftovers", Calendar.strftime(monday, "%a %-d %b"))
+
+      assert has_element?(
+               view,
+               "#sheet-recipe-#{c.chilli.id}",
+               "Leftovers from #{Calendar.strftime(monday, "%a %-d %b")} dinner"
+             )
     end
 
     test "a stale chip reloads the week", %{
