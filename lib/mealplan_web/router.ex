@@ -83,6 +83,18 @@ defmodule MealplanWeb.Router do
       on_mount: [{MealplanWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+      # Needs a login but not a household: this is where you get one.
+      live "/welcome", HouseholdLive.Onboarding, :new
+    end
+
+    # Everything that works on a household's data. Users without one are sent
+    # to /welcome.
+    live_session :require_household,
+      on_mount: [
+        {MealplanWeb.UserAuth, :require_authenticated},
+        {MealplanWeb.UserAuth, :require_household}
+      ] do
+      live "/plan", PlanLive.Week, :index
     end
 
     post "/users/update-password", UserSessionController, :update_password
