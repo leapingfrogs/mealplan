@@ -85,6 +85,42 @@ defmodule Mealplan.Shopping.QuantityTest do
     end
   end
 
+  describe "more/2 and storing" do
+    defp q(rows, scale \\ 1),
+      do: rows |> Enum.map(&Quantity.new(&1, Decimal.new("#{scale}"))) |> Quantity.sum()
+
+    test "what grew, by how much, as shown" do
+      before = q([row(400, "g"), row(2, "tbsp"), row(1), row("a pinch")])
+
+      assert Quantity.more(before, before) == nil
+      assert Quantity.more(q([row(400, "g")]), before) == nil
+
+      grown = q([row(1, "kg"), row(3, "tbsp"), row(1), row(250, "ml"), row("a handful")])
+
+      assert Quantity.to_string(Quantity.more(grown, before)) ==
+               "600 g + 250 ml + 1 tbsp + a handful"
+    end
+
+    test "counts compare as rounded up" do
+      assert Quantity.more(q([row("1.8")]), q([row("1.5")])) == nil
+      assert Quantity.to_string(Quantity.more(q([row("2.1")]), q([row("1.5")]))) == "1"
+    end
+
+    test "to_map/1 and from_map/1 keep the amounts" do
+      quantity = q([row("1.5", "kg"), row(2, "tins"), row(3), row("a pinch"), row(nil)], 2)
+
+      back =
+        quantity |> Quantity.to_map() |> Jason.encode!() |> Jason.decode!() |> Quantity.from_map()
+
+      assert Quantity.more(quantity, back) == nil
+      assert Quantity.more(back, quantity) == nil
+      assert back.some
+
+      assert Quantity.from_map(%{"mass" => "lots", "units" => %{"tin" => 3}, "texts" => [1]}) ==
+               %Quantity{}
+    end
+  end
+
   describe "properties" do
     defp quantity do
       gen all n <- integer(1..5000),

@@ -91,7 +91,9 @@ When the plan changes, the list recomputes:
 - A ticked line whose amount is **the same or less** stays ticked.
 - A ticked line whose amount **grows** comes back unticked, showing the
   extra: `Chopped tomatoes: 3 tins (1 more since ticked)`.
-- A ticked line no longer needed disappears; its tick is forgotten.
+- A ticked line no longer needed (the plan or the range changed) disappears,
+  but its tick is kept, hidden, until a new list is started: if the line comes
+  back it's still ticked, unless more is needed by then.
 
 ### The range and starting again
 
@@ -112,7 +114,7 @@ All rows carry `household_id` with composite foreign keys, as elsewhere.
 | Table | Fields | Notes |
 |---|---|---|
 | `shopping_lists` | `household_id` (unique), `starts_on`, `ends_on` | One per household, created on first visit |
-| `shopping_ticks` | `shopping_list_id`, `key`, `amount` (text) | Unique per list and key; `amount` is the line as ticked, for the "more since ticked" rule |
+| `shopping_ticks` | `shopping_list_id`, `key`, `quantity` (json), `amount` (text) | Unique per list and key; the quantity as ticked, for the "more since ticked" rule |
 | `shopping_items` | `shopping_list_id`, `text`, `ticked_at`, `position` | Manual items |
 | `staples` | `household_id`, `key`, `name` | Unique per household and key |
 
@@ -141,8 +143,8 @@ Phone first; ticking must be a large target and work one-handed.
 
 | Where | Adds |
 |---|---|
-| `Shopping` (new context) | `get_list/1`, `needs(scope, list)` (the computed lines), `set_range/3`, `tick/3`, `untick/3`, manual items, staples, `start_new/1`; broadcasts |
-| `Shopping.Quantity` | merging, metric conversion and formatting: pure, property-tested |
+| `Shopping` (new context) | `get_list/1`, `needs/3` (the computed lines), `view/1` (to buy, ticked, staples, items), `set_range/2`, `tick/2`, `untick/2`, manual items, staples, `start_new/1`; broadcasts |
+| `Shopping.Quantity` | merging, metric conversion, formatting and "how much more": pure, property-tested |
 | `Planning` | the cooked-servings maths for a range, shared with `leftover_sources` |
 | `ShoppingLive.Index`, `ShoppingLive.Staples` | the screens, in the `:require_household` live session |
 

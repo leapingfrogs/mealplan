@@ -118,6 +118,84 @@ defmodule Mealplan.Shopping.Quantity do
     end
   end
 
+  @doc """
+  How much more `current` is than `before` (a quantity as ticked), as shown:
+  each metric amount, unit and count that grew, by how much, and texts that
+  are new. Nil when nothing grew. Amounts are compared as shown, so a count
+  that rounds to the same number hasn't grown.
+  """
+  def more(%__MODULE__{} = current, %__MODULE__{} = before) do
+    units =
+      for {unit, %{amount: amount} = spellings} <- current.units,
+          extra = grew(amount, get_in(before.units, [unit, :amount]), 2),
+          into: %{},
+          do: {unit, %{spellings | amount: extra}}
+
+    more = %__MODULE__{
+      mass: grew(current.mass, before.mass, 2),
+      volume: grew(current.volume, before.volume, 2),
+      units: units,
+      count: grew(current.count, before.count, :count),
+      texts: current.texts -- before.texts
+    }
+
+    if empty?(more), do: nil, else: more
+  end
+
+  defp grew(nil, _before, _places), do: nil
+
+  defp grew(now, before, places) do
+    extra = Decimal.sub(shown_number(now, places), shown_number(before || Decimal.new(0), places))
+    if Decimal.gt?(extra, 0), do: extra
+  end
+
+  defp shown_number(amount, :count), do: Decimal.round(amount, 0, :ceiling)
+  defp shown_number(amount, places), do: Decimal.round(amount, places)
+
+  @doc "The quantity as a JSON-friendly map, for storing (amounts as strings)."
+  def to_map(%__MODULE__{} = quantity) do
+    %{
+      "mass" => decimal_string(quantity.mass),
+      "volume" => decimal_string(quantity.volume),
+      "units" =>
+        Map.new(quantity.units, fn {unit, %{amount: a}} -> {unit, decimal_string(a)} end),
+      "count" => decimal_string(quantity.count),
+      "texts" => quantity.texts,
+      "some" => quantity.some
+    }
+  end
+
+  @doc "Reads back `to_map/1`; anything unreadable is left out."
+  def from_map(map) when is_map(map) do
+    units =
+      for {unit, amount} <- map["units"] || %{},
+          is_binary(unit),
+          amount = decimal(amount),
+          into: %{},
+          do: {unit, %{amount: amount}}
+
+    %__MODULE__{
+      mass: decimal(map["mass"]),
+      volume: decimal(map["volume"]),
+      units: units,
+      count: decimal(map["count"]),
+      texts: Enum.filter(List.wrap(map["texts"]), &is_binary/1),
+      some: map["some"] == true
+    }
+  end
+
+  defp decimal_string(nil), do: nil
+  defp decimal_string(amount), do: Decimal.to_string(amount, :normal)
+
+  defp decimal(text) when is_binary(text) do
+    case Decimal.parse(text) do
+      {amount, ""} -> amount
+      _invalid -> nil
+    end
+  end
+
+  defp decimal(_none), do: nil
+
   @doc "True when the quantity has no amount of any kind."
   def empty?(%__MODULE__{} = quantity), do: quantity == %__MODULE__{}
 
