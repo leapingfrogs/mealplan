@@ -71,6 +71,17 @@ defmodule Mealplan.Recipes do
     |> Repo.get!(id)
   end
 
+  @doc "Like `get_recipe!/2`, but nil for a missing, malformed or foreign id."
+  def get_recipe(%Scope{household: %Household{id: household_id}}, id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} ->
+        Recipe |> where(household_id: ^household_id) |> preload(:ingredients) |> Repo.get(id)
+
+      :error ->
+        nil
+    end
+  end
+
   @doc "Returns a changeset for the recipe form."
   def change_recipe(%Recipe{} = recipe, attrs \\ %{}), do: Recipe.changeset(recipe, attrs)
 

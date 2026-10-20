@@ -107,6 +107,10 @@ defmodule MealplanWeb.Router do
       live "/meals/:id", MealLive.Show, :show
     end
 
+    # Owner-only downloads (ADR 14); checked in the controller.
+    get "/household/export", ExportController, :household
+    get "/recipes/:id/download", ExportController, :recipe
+
     post "/users/update-password", UserSessionController, :update_password
   end
 

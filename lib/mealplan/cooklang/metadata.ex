@@ -76,7 +76,9 @@ defmodule Mealplan.Cooklang.Metadata do
     value = String.trim(value)
 
     case Regex.run(~r/\A(["'])(.*)\1\z/su, value, capture: :all_but_first) do
-      [_quote, inner] -> inner
+      # Double quotes allow YAML's \" and \\ escapes.
+      ["\"", inner] -> inner |> String.replace("\\\"", "\"") |> String.replace("\\\\", "\\")
+      [_single, inner] -> inner
       nil -> value
     end
   end
