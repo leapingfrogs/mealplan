@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/leapingfrogs/mealplan/compare/v0.4.0...v0.5.0) (2026-10-20)
+
+
+### Features
+
+* add the shopping screen ([#57](https://github.com/leapingfrogs/mealplan/issues/57)) ([ad9f0d7](https://github.com/leapingfrogs/mealplan/commit/ad9f0d7b0242358d8e7f29339ed53b386c5d2542))
+* keep the shopping list's range, ticks, items and staples ([#56](https://github.com/leapingfrogs/mealplan/issues/56)) ([3163c46](https://github.com/leapingfrogs/mealplan/commit/3163c463091a62311d0cde9e3fb9e264c3def057))
+* work out what to buy for the planned meals ([#54](https://github.com/leapingfrogs/mealplan/issues/54)) ([2cc455d](https://github.com/leapingfrogs/mealplan/commit/2cc455d4f83a738d116e762bb8819ea12e2a9240))
+
 ## [0.4.0](https://github.com/leapingfrogs/mealplan/compare/v0.3.0...v0.4.0) (2026-10-20)
 
 
