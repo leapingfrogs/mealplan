@@ -187,6 +187,13 @@ flowchart LR
   planned meal or a skip.
 - The planner opens on the current week, or on next week once the current one
   is fully planned.
+- "Copy last week" copies each day-and-slot (meals in order with their
+  servings, or the skip) only where this week's slot is empty, so it never
+  overwrites and repeating it changes nothing. A copied leftover link points
+  at the copy of its source or, if that slot was already planned this week,
+  at the meal there cooking the recipe fresh (the same meal preferred);
+  failing both, as for leftovers from before the copied week, the meal is
+  cooked fresh. Inactive slots and archived meals are left out.
 
 ### The archive rule
 

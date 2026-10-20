@@ -562,6 +562,158 @@ defmodule Mealplan.PlanningTest do
     end
   end
 
+  describe "copy_week/2" do
+    @next_mon ~D[2026-11-09]
+
+    defp week_cells(scope, date) do
+      week = Planning.get_week(scope, date)
+
+      meals =
+        for pm <- week.planned_meals,
+            do: {Date.day_of_week(pm.date), pm.meal_slot_id, pm.meal_id, pm.servings, pm.position}
+
+      skips = for s <- week.skips, do: {Date.day_of_week(s.date), s.meal_slot_id, :skip}
+      Enum.sort(meals ++ skips)
+    end
+
+    test "copies meals, servings, order, skips and leftovers into an empty week",
+         %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_rice, 4)
+      plan(scope, @mon, slots["dinner"], c.chilli_salad, 2)
+      wednesday = plan(scope, @wed, slots["lunch"], c.chilli_meal, 2)
+      {:ok, _} = Planning.add_leftover(scope, wednesday.id, monday.id, c.chilli.id)
+      {:ok, _} = Planning.skip_slot(scope, @tue, slots["breakfast"].id)
+      :ok = Households.subscribe(scope)
+
+      assert {:ok, %{meals: 3, skips: 1, leftovers: 1}} =
+               Planning.copy_week(scope, Date.add(@next_mon, 3))
+
+      assert week_cells(scope, @next_mon) == week_cells(scope, @mon)
+      assert_receive {:plan_changed, @next_mon}
+
+      # The leftover link points within the new week, and the maths follows.
+      copied = Planning.get_week(scope, @next_mon)
+      [link] = Enum.flat_map(copied.planned_meals, & &1.leftovers)
+      assert link.source_planned_meal.date == @next_mon
+      assert Enum.any?(cooking(scope, @next_mon), &(elem(&1, 1) == "Chilli" and elem(&1, 2) == 6))
+    end
+
+    test "never overwrites, and copying again changes nothing",
+         %{scope: scope, slots: slots} = c do
+      plan(scope, @mon, slots["dinner"], c.chilli_rice, 4)
+      plan(scope, @tue, slots["dinner"], c.chilli_rice, 4)
+      {:ok, _} = Planning.skip_slot(scope, @wed, slots["dinner"].id)
+
+      # Next Monday's dinner is already planned; next Tuesday's is skipped.
+      mine = plan(scope, @next_mon, slots["dinner"], c.chilli_meal, 1)
+      {:ok, _} = Planning.skip_slot(scope, Date.add(@next_mon, 1), slots["dinner"].id)
+
+      assert {:ok, %{meals: 0, skips: 1, leftovers: 0}} = Planning.copy_week(scope, @next_mon)
+      before = week_cells(scope, @next_mon)
+      assert {:ok, %{meals: 0, skips: 0, leftovers: 0}} = Planning.copy_week(scope, @next_mon)
+      assert week_cells(scope, @next_mon) == before
+
+      assert [%{id: id}] =
+               Enum.filter(
+                 Planning.get_week(scope, @next_mon).planned_meals,
+                 &(&1.meal_slot_id == slots["dinner"].id)
+               )
+
+      assert id == mine.id
+    end
+
+    test "a link whose source slot this week holds no matching meal becomes fresh",
+         %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_meal, 4)
+      wednesday = plan(scope, @wed, slots["lunch"], c.chilli_meal, 2)
+      {:ok, _} = Planning.add_leftover(scope, wednesday.id, monday.id, c.chilli.id)
+
+      plan(
+        scope,
+        @next_mon,
+        slots["dinner"],
+        meal_fixture(scope, %{name: "Salad bowl"}, [c.salad]),
+        2
+      )
+
+      assert {:ok, %{meals: 1, leftovers: 0}} = Planning.copy_week(scope, @next_mon)
+      assert Enum.all?(Planning.get_week(scope, @next_mon).planned_meals, &(&1.leftovers == []))
+    end
+
+    test "a link moves to the meal already in its source's slot this week",
+         %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_meal, 4)
+      wednesday = plan(scope, @wed, slots["lunch"], c.chilli_meal, 2)
+      {:ok, _} = Planning.add_leftover(scope, wednesday.id, monday.id, c.chilli.id)
+
+      # Next Monday's dinner is already planned with two meals holding chilli;
+      # the same meal as last week's source is preferred.
+      plan(scope, @next_mon, slots["dinner"], c.chilli_rice, 4)
+      already = plan(scope, @next_mon, slots["dinner"], c.chilli_meal, 3)
+
+      assert {:ok, %{meals: 1, leftovers: 1}} = Planning.copy_week(scope, @next_mon)
+
+      [link] = Enum.flat_map(Planning.get_week(scope, @next_mon).planned_meals, & &1.leftovers)
+      assert link.source_planned_meal_id == already.id
+
+      assert Enum.find(cooking(scope, @next_mon), &(elem(&1, 0) == already.id)) ==
+               {already.id, "Chilli", 5, "1.25"}
+    end
+
+    test "any meal there cooking the recipe fresh will do", %{scope: scope, slots: slots} = c do
+      monday = plan(scope, @mon, slots["dinner"], c.chilli_meal, 4)
+      wednesday = plan(scope, @wed, slots["lunch"], c.chilli_meal, 2)
+      {:ok, _} = Planning.add_leftover(scope, wednesday.id, monday.id, c.chilli.id)
+      already = plan(scope, @next_mon, slots["dinner"], c.chilli_rice, 4)
+
+      assert {:ok, %{leftovers: 1}} = Planning.copy_week(scope, @next_mon)
+      [link] = Enum.flat_map(Planning.get_week(scope, @next_mon).planned_meals, & &1.leftovers)
+      assert link.source_planned_meal_id == already.id
+    end
+
+    test "leftovers from before the copied week become fresh",
+         %{scope: scope, slots: slots} = c do
+      # Last week's Tuesday ate the Sunday batch from the week before it.
+      sunday = plan(scope, Date.add(@mon, -1), slots["dinner"], c.chilli_meal, 4)
+      tuesday = plan(scope, @tue, slots["dinner"], c.chilli_meal, 2)
+      {:ok, _} = Planning.add_leftover(scope, tuesday.id, sunday.id, c.chilli.id)
+
+      assert {:ok, %{meals: 1, leftovers: 0}} = Planning.copy_week(scope, @next_mon)
+      assert [copied] = Planning.get_week(scope, @next_mon).planned_meals
+      assert copied.leftovers == []
+      assert cooking(scope, @next_mon) == [{copied.id, "Chilli", 2, "0.5"}]
+    end
+
+    test "inactive slots and archived meals are left out", %{scope: scope, slots: slots} = c do
+      plan(scope, @mon, slots["dinner"], c.chilli_meal, 4)
+      plan(scope, @mon, slots["lunch"], c.chilli_rice, 4)
+
+      c.chilli_meal
+      |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second))
+      |> Repo.update!()
+
+      {:ok, _} = Planning.skip_slot(scope, @tue, slots["snack"].id)
+
+      slots["snack"]
+      |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second))
+      |> Repo.update!()
+
+      assert {:ok, %{meals: 1, skips: 0}} = Planning.copy_week(scope, @next_mon)
+      assert [%{meal_id: meal_id}] = Planning.get_week(scope, @next_mon).planned_meals
+      assert meal_id == c.chilli_rice.id
+    end
+
+    test "only the household's own plan", %{scope: scope, slots: slots} = c do
+      plan(scope, @mon, slots["dinner"], c.chilli_meal, 4)
+      %{scope: other_scope} = household_fixture()
+
+      assert {:ok, %{meals: 0, skips: 0, leftovers: 0}} =
+               Planning.copy_week(other_scope, @next_mon)
+
+      assert Planning.get_week(scope, @next_mon).planned_meals == []
+    end
+  end
+
   describe "deleting" do
     test "a slot with planned meals is refused", %{scope: scope, slots: slots} = c do
       plan(scope, @mon, slots["snack"], c.chilli_meal)
