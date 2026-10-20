@@ -16,6 +16,7 @@ defmodule Mealplan.Transfer do
   alias Mealplan.Recipes.Recipe
   alias Mealplan.Repo
   alias Mealplan.Transfer.CookFile
+  alias Mealplan.Transfer.Reader
 
   @doc """
   The household's active recipes and meals as `{file_name, zip_binary}`.
@@ -39,6 +40,15 @@ defmodule Mealplan.Transfer do
   end
 
   def export(%Scope{}), do: {:error, :not_found}
+
+  @doc """
+  Reads uploaded `{file_name, binary}` pairs (`.zip`, `.cook`, `.menu`) into
+  a `Mealplan.Transfer.Bundle`. Pure; never raises.
+  """
+  defdelegate read(uploads), to: Reader
+
+  @doc "Import limits, for forms and messages."
+  defdelegate limits(), to: Reader
 
   @doc "One recipe as `{file_name, cook_text}`. Owner only."
   def recipe_file(
