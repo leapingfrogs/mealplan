@@ -24,6 +24,16 @@ defmodule MealplanWeb.PlanLive.Week do
           <p class="text-sm text-base-content/60">{date_range(@week)}</p>
         </div>
         <nav class="flex items-center gap-1" aria-label="Weeks">
+          <button
+            :if={not Week.fully_planned?(@week) and @week.slots != []}
+            type="button"
+            id="copy-last-week"
+            class="btn btn-ghost btn-sm"
+            phx-click="copy_week"
+            phx-disable-with="Copying..."
+          >
+            <.icon name="hero-document-duplicate" class="size-4" /> Copy last week
+          </button>
           <.link
             patch={week_path(Date.add(@week.start, -7))}
             id="previous-week"
@@ -599,6 +609,11 @@ defmodule MealplanWeb.PlanLive.Week do
     end
   end
 
+  def handle_event("copy_week", _params, socket) do
+    {:ok, copied} = Planning.copy_week(socket.assigns.current_scope, socket.assigns.week.start)
+    {:noreply, socket |> put_flash(:info, copied_message(copied)) |> reload()}
+  end
+
   ## The sheet
 
   def handle_event("add", %{"date" => date, "slot" => slot_id}, socket) do
@@ -1005,6 +1020,29 @@ defmodule MealplanWeb.PlanLive.Week do
           "#{Enum.map_join(feeds, ", ", &slot_label/1)} will then be cooked fresh instead."
     end
   end
+
+  defp copied_message(%{meals: 0, skips: 0}),
+    do: "Nothing to copy: last week had nothing planned for this week's empty slots."
+
+  defp copied_message(%{meals: meals, skips: skips, leftovers: leftovers}) do
+    parts =
+      Enum.filter(
+        [
+          meals > 0 && count(meals, "meal"),
+          skips > 0 && count(skips, "skipped slot"),
+          leftovers > 0 && count(leftovers, "leftover link")
+        ],
+        & &1
+      )
+
+    "Copied #{and_join(parts)} from last week."
+  end
+
+  defp and_join([only]), do: only
+  defp and_join(parts), do: Enum.join(Enum.drop(parts, -1), ", ") <> " and " <> List.last(parts)
+
+  defp count(1, noun), do: "1 #{noun}"
+  defp count(n, noun), do: "#{n} #{noun}s"
 
   defp cell_meals(cells, day, slot), do: Map.get(cells, {day, slot.id}, [])
 

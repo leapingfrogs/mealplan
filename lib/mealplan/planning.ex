@@ -318,6 +318,111 @@ defmodule Mealplan.Planning do
     end
   end
 
+  ## Copying a week
+
+  @doc """
+  Copies the previous week's plan into the week starting `week_start`
+  (any date in it). Each day-and-slot cell is copied, meals in order with
+  their servings or the skip, only if the same cell this week is empty, so
+  existing plans are never overwritten and copying again changes nothing.
+  Leftover links point within the new week: to the copy of their source, or,
+  when the source's slot this week was already planned, to the meal there if
+  it cooks the recipe fresh (preferring the same meal). Otherwise, as for
+  leftovers from before the copied week, the copied meal is cooked fresh. Inactive slots and archived meals are left out.
+
+  Returns `{:ok, %{meals: n, skips: n, leftovers: n}}`.
+  """
+  def copy_week(%Scope{household: %Household{id: household_id}} = scope, %Date{} = date) do
+    target = week_start(date)
+    source = get_week(scope, Date.add(target, -7))
+    current = get_week(scope, target)
+
+    taken =
+      MapSet.new(
+        Enum.map(current.planned_meals, &{&1.date, &1.meal_slot_id}) ++
+          Enum.map(current.skips, &{&1.date, &1.meal_slot_id})
+      )
+
+    active_slots = MapSet.new(source.slots, & &1.id)
+
+    copy? = fn d, slot_id ->
+      MapSet.member?(active_slots, slot_id) and
+        not MapSet.member?(taken, {Date.add(d, 7), slot_id})
+    end
+
+    fn ->
+      copies =
+        for planned_meal <- source.planned_meals,
+            copy?.(planned_meal.date, planned_meal.meal_slot_id),
+            is_nil(planned_meal.meal.archived_at),
+            into: %{} do
+          {planned_meal.id, copy_planned_meal(household_id, planned_meal)}
+        end
+
+      skips =
+        for skip <- source.skips, copy?.(skip.date, skip.meal_slot_id) do
+          Repo.insert!(%SlotSkip{
+            household_id: household_id,
+            date: Date.add(skip.date, 7),
+            meal_slot_id: skip.meal_slot_id
+          })
+        end
+
+      leftovers =
+        for planned_meal <- source.planned_meals,
+            leftover <- planned_meal.leftovers,
+            eater = Map.get(copies, leftover.planned_meal_id),
+            from =
+              Map.get(copies, leftover.source_planned_meal_id) ||
+                matching_source(current, leftover) do
+          Repo.insert!(%Leftover{
+            household_id: household_id,
+            planned_meal_id: eater.id,
+            source_planned_meal_id: from.id,
+            recipe_id: leftover.recipe_id
+          })
+        end
+
+      {:ok, %{meals: map_size(copies), skips: length(skips), leftovers: length(leftovers)}}
+    end
+    |> Repo.transact()
+    |> case do
+      {:ok, %{meals: 0, skips: 0}} = nothing ->
+        nothing
+
+      {:ok, _counts} = copied ->
+        :ok = Households.broadcast(scope, {:plan_changed, target})
+        copied
+    end
+  end
+
+  # A link whose source wasn't copied (this week's slot was already
+  # planned) moves to the meal now in that slot, if it cooks the recipe
+  # fresh, preferring the same meal. Sources before the copied week have no
+  # counterpart this week, so those meals become fresh.
+  defp matching_source(%Week{} = current, %Leftover{source_planned_meal: source} = leftover) do
+    date = Date.add(source.date, 7)
+
+    current.planned_meals
+    |> Enum.filter(
+      &(&1.date == date and &1.meal_slot_id == source.meal_slot_id and
+          has_recipe?(&1, leftover.recipe_id) and not leftover?(&1, leftover.recipe_id))
+    )
+    |> Enum.sort_by(&(&1.meal_id != source.meal_id))
+    |> List.first()
+  end
+
+  defp copy_planned_meal(household_id, planned_meal) do
+    Repo.insert!(%PlannedMeal{
+      household_id: household_id,
+      date: Date.add(planned_meal.date, 7),
+      meal_slot_id: planned_meal.meal_slot_id,
+      meal_id: planned_meal.meal_id,
+      servings: planned_meal.servings,
+      position: planned_meal.position
+    })
+  end
+
   ## Skips
 
   @doc "Marks a slot as needing no meal on a date. Refused while meals are planned there."

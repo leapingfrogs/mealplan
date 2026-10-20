@@ -185,6 +185,34 @@ defmodule MealplanWeb.PlanLive.WeekTest do
       assert has_element?(view, "#days")
     end
 
+    test "copies last week into this one, once",
+         %{conn: conn, scope: scope, slots: slots, meal: meal, this_week: monday} do
+      last_monday = Date.add(monday, -7)
+      {:ok, _} = Planning.plan_meal(scope, last_monday, slots["dinner"].id, meal.id, 3)
+      {:ok, _} = Planning.skip_slot(scope, Date.add(last_monday, 1), slots["lunch"].id)
+      {:ok, view, _html} = live(conn, "/plan/#{monday}")
+
+      html = view |> element("#copy-last-week") |> render_click()
+      assert html =~ "Copied 1 meal and 1 skipped slot from last week."
+      assert has_element?(view, "#cell-#{monday}-#{slots["dinner"].id}", "Chilli night")
+      assert has_element?(view, "#cell-#{monday}-#{slots["dinner"].id}", "×3")
+      assert has_element?(view, "#cell-#{Date.add(monday, 1)}-#{slots["lunch"].id}", "Skipped")
+
+      html = view |> element("#copy-last-week") |> render_click()
+      assert html =~ "Nothing to copy"
+      assert length(Planning.get_week(scope, monday).planned_meals) == 1
+    end
+
+    test "copying is offered only while the week has empty slots",
+         %{conn: conn, scope: scope, slots: slots, this_week: monday} do
+      for day <- Date.range(monday, Date.add(monday, 6)), {_key, slot} <- slots do
+        {:ok, _} = Planning.skip_slot(scope, day, slot.id)
+      end
+
+      {:ok, view, _html} = live(conn, "/plan/#{monday}")
+      refute has_element?(view, "#copy-last-week")
+    end
+
     test "a household without slots is told where to add them", %{conn: conn, scope: scope} do
       Mealplan.Repo.delete_all(Mealplan.Households.MealSlot)
       {:ok, view, _html} = live(conn, ~p"/plan")
