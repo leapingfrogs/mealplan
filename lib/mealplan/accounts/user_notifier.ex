@@ -73,14 +73,24 @@ defmodule Mealplan.Accounts.UserNotifier do
 
     #{url}
 
-    The link works for 15 minutes. After that, go to #{login_url}
-    and log in with this email address. The invitation itself is valid until
-    #{Calendar.strftime(expires_at, "%-d %B %Y")}.
+    #{link_validity(details, login_url, Calendar.strftime(expires_at, "%-d %B %Y"))}
 
     If you weren't expecting this, you can ignore this email.
 
     ==============================
     """)
+  end
+
+  defp link_validity(%{link_lasts_until_expiry: true}, _login_url, until) do
+    "The link and the invitation are valid until #{until}."
+  end
+
+  defp link_validity(_details, login_url, until) do
+    """
+    The link works for 15 minutes. After that, go to #{login_url}
+    and log in with this email address. The invitation itself is valid until
+    #{until}.\
+    """
   end
 
   defp deliver_magic_link_instructions(user, url) do

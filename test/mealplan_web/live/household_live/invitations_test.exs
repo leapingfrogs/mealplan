@@ -1,12 +1,14 @@
 defmodule MealplanWeb.HouseholdLive.InvitationsTest do
   use MealplanWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Mealplan.AccountsFixtures
   import Mealplan.HouseholdsFixtures
   import Phoenix.LiveViewTest
 
   alias Mealplan.Accounts
   alias Mealplan.Accounts.Scope
+  alias Mealplan.Accounts.UserToken
   alias Mealplan.Households
   alias Mealplan.Repo
 
@@ -185,6 +187,14 @@ defmodule MealplanWeb.HouseholdLive.InvitationsTest do
         assert_received {:email, %{to: [{"", "newcomer@example.com"}]} = email}
         {:ok, email}
       end)
+
+    # The link outlives the usual 15 minutes, for the invitation's whole week.
+    newcomer = Accounts.get_user_by_email("newcomer@example.com")
+    six_days_ago = DateTime.shift(DateTime.utc_now(:second), day: -6)
+
+    Repo.update_all(from(t in UserToken, where: t.user_id == ^newcomer.id),
+      set: [inserted_at: six_days_ago]
+    )
 
     conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}})
     assert redirected_to(conn) == ~p"/"

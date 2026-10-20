@@ -252,6 +252,87 @@ defmodule Mealplan.HouseholdsTest do
     end
   end
 
+  describe "invitation login links" do
+    alias Mealplan.Accounts.UserToken
+    alias Mealplan.Households.Invitation
+
+    setup do
+      %{scope: scope} = household_fixture(user_fixture(), %{name: "Hosts"})
+      flush_emails()
+      %{scope: scope}
+    end
+
+    defp invite_and_get_link(scope, email) do
+      {:ok, invitation} =
+        Households.invite(scope, %{email: email}, &"https://x/log-in/#{&1}", "https://x/log-in")
+
+      assert_received {:email, %{text_body: body}}
+      [_, token] = Regex.run(~r{https://x/log-in/([\w-]+)}, body)
+      {invitation, token, body}
+    end
+
+    defp age_tokens(user, days) do
+      at = DateTime.shift(DateTime.utc_now(:second), day: -days)
+      Repo.update_all(from(t in UserToken, where: t.user_id == ^user.id), set: [inserted_at: at])
+    end
+
+    test "a new account's link lasts as long as the invitation", %{scope: scope} do
+      {_invitation, token, body} = invite_and_get_link(scope, "new@example.com")
+      user = Accounts.get_user_by_email("new@example.com")
+
+      assert body =~ "The link and the invitation are valid until"
+      refute body =~ "15 minutes"
+
+      age_tokens(user, 6)
+      assert Accounts.get_user_by_magic_link_token(token).id == user.id
+
+      age_tokens(user, 8)
+      refute Accounts.get_user_by_magic_link_token(token)
+    end
+
+    test "works once: logging in confirms the account and spends the link", %{scope: scope} do
+      {_invitation, token, _body} = invite_and_get_link(scope, "once@example.com")
+
+      assert {:ok, {%User{confirmed_at: %DateTime{}}, _tokens}} =
+               Accounts.login_user_by_magic_link(token)
+
+      assert {:error, :not_found} = Accounts.login_user_by_magic_link(token)
+    end
+
+    test "inviting again replaces the earlier link", %{scope: scope} do
+      {_invitation, old, _body} = invite_and_get_link(scope, "again@example.com")
+      {_invitation, new, _body} = invite_and_get_link(scope, "again@example.com")
+
+      refute Accounts.get_user_by_magic_link_token(old)
+      assert Accounts.get_user_by_magic_link_token(new)
+    end
+
+    test "revoking or declining the invitation kills the link", %{scope: scope} do
+      {invitation, token, _body} = invite_and_get_link(scope, "revoked@example.com")
+      assert {:ok, _} = Households.revoke_invitation(scope, invitation.id)
+      refute Accounts.get_user_by_magic_link_token(token)
+
+      {invitation, token, _body} = invite_and_get_link(scope, "declined@example.com")
+      user = Accounts.get_user_by_email("declined@example.com")
+      assert {:ok, _} = Households.decline_invitation(Scope.for_user(user), invitation.id)
+      refute Accounts.get_user_by_magic_link_token(token)
+    end
+
+    test "an existing account gets the usual short-lived login link", %{scope: scope} do
+      existing = user_fixture()
+      flush_emails()
+      {_invitation, token, body} = invite_and_get_link(scope, existing.email)
+
+      assert body =~ "15 minutes"
+      age_tokens(existing, 1)
+      refute Accounts.get_user_by_magic_link_token(token)
+    end
+
+    test "the link's validity matches the invitation's" do
+      assert UserToken.invitation_validity_in_days() == Invitation.validity_days()
+    end
+  end
+
   describe "invitations for the invited user" do
     alias Mealplan.Households.Invitation
 
