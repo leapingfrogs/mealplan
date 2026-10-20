@@ -115,3 +115,13 @@ As a user within a household I am able to tag a meal with the meal slots it suit
 As a user planning a week, when I add a meal to a slot, the meals tagged for that slot are listed first. Other meals and recipes are still available but start collapsed, so choosing is quicker and meals come before recipes. Planning a meal in a slot tags it with that slot if it isn't already, so meals pick up tags as I plan.
 
 Exports include each meal's slot tags, and imports bring them back: a tag naming one of our slots (ignoring case) tags the meal with it. For an imported meal with no tags, or with tags that don't match any of our slots, I can choose which of our slots to tag it with in the import preview, including several at once.
+
+## Shopping lists (iteration 4)
+
+As a user within a household I am able to see a shopping list for the meals planned over a range of days (by default, from today to the end of the planning week). Ingredients are scaled to the servings that will actually be cooked, including leftovers taken from a meal, and the same ingredient from different recipes is merged into one line, converting between metric units of the same kind.
+
+As a user within a household I am able to tick items off while shopping, and the other members see the ticks straight away. If the plan changes, the list follows it: ticked items stay ticked, unless more is now needed, in which case the item comes back showing how much more.
+
+As a user within a household I am able to mark ingredients as staples we always have (salt, pepper, olive oil), which are left off the list but can still be seen, and to add items that aren't in any recipe, such as kitchen roll.
+
+As a user within a household I am able to copy the list as text, and to start a new list, which clears ticks but keeps items I added and haven't bought.

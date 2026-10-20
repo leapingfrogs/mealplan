@@ -53,7 +53,8 @@ from `.tool-versions`, the single source shared with CI and the Dockerfile.
 
 The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
 [iteration-2.md](docs/design/iteration-2.md) for import and export,
-[iteration-3.md](docs/design/iteration-3.md) for meal slot tags);
+[iteration-3.md](docs/design/iteration-3.md) for meal slot tags,
+[iteration-4.md](docs/design/iteration-4.md) for shopping lists);
 [USER_STORIES.md](USER_STORIES.md) is the source of the behaviour.
 
 | Context | Owns |
