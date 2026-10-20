@@ -146,6 +146,212 @@ defmodule Mealplan.HouseholdsTest do
     end
   end
 
+  describe "invite/4" do
+    alias Mealplan.Households.Invitation
+
+    # Fixtures send their own login emails; drop them before asserting.
+    defp flush_emails do
+      receive do
+        {:email, _} -> flush_emails()
+      after
+        0 -> :ok
+      end
+    end
+
+    defp invite(scope, email),
+      do:
+        Households.invite(
+          scope,
+          %{email: email},
+          &"https://mealplan.test/users/log-in/#{&1}",
+          "https://mealplan.test/users/log-in"
+        )
+
+    test "creates an account for a new address, records the invitation and emails a login link" do
+      %{scope: scope, household: household} =
+        household_fixture(user_fixture(), %{name: "The Davies"})
+
+      flush_emails()
+      :ok = Households.subscribe(scope)
+
+      assert {:ok, %Invitation{} = invitation} = invite(scope, " New.Person@Example.com ")
+
+      assert invitation.email == "new.person@example.com"
+      assert invitation.household_id == household.id
+      assert DateTime.diff(invitation.expires_at, DateTime.utc_now(), :day) in 6..7
+
+      assert %User{household_id: nil, confirmed_at: nil} =
+               Accounts.get_user_by_email("new.person@example.com")
+
+      assert_received {:email, email}
+      assert email.to == [{"", "new.person@example.com"}]
+      assert email.subject =~ "invited you to The Davies"
+      assert email.text_body =~ "https://mealplan.test/users/log-in/"
+      assert_receive {:household_changed, :invitations}
+
+      assert [%Invitation{id: id}] = Households.list_pending_invitations(scope)
+      assert id == invitation.id
+    end
+
+    test "invites an existing account without creating another" do
+      %{scope: scope} = household_fixture()
+      existing = user_fixture()
+      flush_emails()
+
+      assert {:ok, _} = invite(scope, existing.email)
+      assert Repo.aggregate(from(u in User, where: u.email == ^existing.email), :count) == 1
+      assert_received {:email, %{to: [{"", to}]}}
+      assert to == existing.email
+    end
+
+    test "inviting again renews the open invitation and resends the email" do
+      %{scope: scope} = household_fixture()
+      {:ok, first} = invite(scope, "again@example.com")
+      assert_received {:email, _}
+
+      Repo.update_all(from(i in Invitation, where: i.id == ^first.id),
+        set: [expires_at: ~U[2020-01-01 00:00:00Z]]
+      )
+
+      assert {:ok, second} = invite(scope, "AGAIN@example.com")
+      assert second.id == first.id
+      assert DateTime.after?(second.expires_at, DateTime.utc_now())
+      assert Repo.aggregate(Invitation, :count) == 1
+      assert_received {:email, _}
+    end
+
+    test "rejects invalid addresses and existing members" do
+      %{scope: scope, user: owner, household: household} = household_fixture()
+      %{user: member} = member_fixture(household)
+      flush_emails()
+
+      assert {:error, changeset} = invite(scope, "not an email")
+      assert %{email: ["must have the @ sign and no spaces"]} = errors_on(changeset)
+
+      for email <- [owner.email, String.upcase(member.email)] do
+        assert {:error, changeset} = invite(scope, email)
+        assert %{email: ["is already a member"]} = errors_on(changeset)
+      end
+
+      refute_received {:email, _}
+    end
+
+    test "is for owners only" do
+      %{household: household} = household_fixture()
+      %{scope: member_scope} = member_fixture(household)
+
+      assert invite(member_scope, "someone@example.com") == {:error, :unauthorized}
+      assert Repo.aggregate(Invitation, :count) == 0
+    end
+
+    test "limits invitations per household" do
+      %{scope: scope} = household_fixture()
+
+      for n <- 1..20, do: assert({:ok, _} = invite(scope, "person#{n}@example.com"))
+      assert invite(scope, "one-too-many@example.com") == {:error, :rate_limited}
+    end
+  end
+
+  describe "invitations for the invited user" do
+    alias Mealplan.Households.Invitation
+
+    setup do
+      %{scope: owner_scope, household: household} =
+        household_fixture(user_fixture(), %{name: "Hosts"})
+
+      invitee = user_fixture()
+
+      {:ok, invitation} =
+        Households.invite(owner_scope, %{email: invitee.email}, &"https://x/#{&1}", "https://x")
+
+      %{
+        owner_scope: owner_scope,
+        household: household,
+        invitee: invitee,
+        scope: Scope.for_user(invitee),
+        invitation: invitation
+      }
+    end
+
+    test "list_invitations_for_user/1 lists pending invitations with household and inviter",
+         %{scope: scope, invitation: invitation, owner_scope: owner_scope} do
+      assert [%Invitation{id: id, household: %Household{name: "Hosts"}, invited_by: inviter}] =
+               Households.list_invitations_for_user(scope)
+
+      assert id == invitation.id
+      assert inviter.id == owner_scope.user.id
+    end
+
+    test "expired, revoked and declined invitations are not pending", %{
+      scope: scope,
+      owner_scope: owner_scope,
+      invitation: invitation
+    } do
+      Repo.update_all(from(i in Invitation, where: i.id == ^invitation.id),
+        set: [expires_at: ~U[2020-01-01 00:00:00Z]]
+      )
+
+      assert Households.list_invitations_for_user(scope) == []
+      assert Households.list_pending_invitations(owner_scope) == []
+      assert Households.accept_invitation(scope, invitation.id) == {:error, :not_found}
+    end
+
+    test "accept_invitation/2 joins the household and tells its members",
+         %{
+           scope: scope,
+           invitee: invitee,
+           household: household,
+           owner_scope: owner_scope,
+           invitation: invitation
+         } do
+      :ok = Households.subscribe(owner_scope)
+
+      assert {:ok, %Household{id: id}} = Households.accept_invitation(scope, invitation.id)
+      assert id == household.id
+      assert Repo.get!(User, invitee.id).household_id == household.id
+      assert Repo.get!(Invitation, invitation.id).accepted_at
+      assert_receive {:household_changed, :members}
+
+      assert Households.accept_invitation(scope, invitation.id) == {:error, :not_found}
+    end
+
+    test "accept_invitation/2 refuses users who already have a household", %{
+      invitee: invitee,
+      invitation: invitation
+    } do
+      %{scope: scope} = household_fixture(invitee)
+
+      assert Households.accept_invitation(scope, invitation.id) == {:error, :already_in_household}
+    end
+
+    test "only the addressee can accept or decline", %{invitation: invitation} do
+      stranger_scope = Scope.for_user(user_fixture())
+
+      assert Households.accept_invitation(stranger_scope, invitation.id) == {:error, :not_found}
+      assert Households.decline_invitation(stranger_scope, invitation.id) == {:error, :not_found}
+    end
+
+    test "decline_invitation/2 closes it", %{scope: scope, invitation: invitation} do
+      assert {:ok, %Invitation{declined_at: %DateTime{}}} =
+               Households.decline_invitation(scope, invitation.id)
+
+      assert Households.list_invitations_for_user(scope) == []
+    end
+
+    test "revoke_invitation/2 is owner only and closes it",
+         %{owner_scope: owner_scope, household: household, scope: scope, invitation: invitation} do
+      %{scope: member_scope} = member_fixture(household)
+
+      assert Households.revoke_invitation(member_scope, invitation.id) == {:error, :unauthorized}
+
+      assert {:ok, %Invitation{revoked_at: %DateTime{}}} =
+               Households.revoke_invitation(owner_scope, invitation.id)
+
+      assert Households.list_invitations_for_user(scope) == []
+      assert Households.revoke_invitation(owner_scope, invitation.id) == {:error, :not_found}
+    end
+  end
+
   describe "list_meal_slots/1" do
     test "only lists the scope's household's active slots" do
       %{scope: scope, household: household} = household_fixture()

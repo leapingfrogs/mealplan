@@ -7,6 +7,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
   use MealplanWeb, :live_view
 
   alias Mealplan.Households
+  alias Mealplan.Households.Invitation
 
   @impl true
   def render(assigns) do
@@ -109,6 +110,83 @@ defmodule MealplanWeb.HouseholdLive.Settings do
           </li>
         </ul>
       </section>
+
+      <section :if={@owner?} class="space-y-3 pt-4">
+        <h2 class="text-lg font-semibold">Invite someone</h2>
+        <.form
+          for={@invite_form}
+          id="invite-form"
+          phx-change="validate_invite"
+          phx-submit="invite"
+          class="flex flex-wrap items-start gap-2"
+        >
+          <div class="flex-1 min-w-48">
+            <.input
+              field={@invite_form[:email]}
+              type="email"
+              placeholder="name@example.com"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <.button variant="primary" phx-disable-with="Sending...">Invite</.button>
+        </.form>
+        <p class="text-sm text-base-content/60">
+          They'll get an email with a link to log in and join. Invitations expire after {Invitation.validity_days()} days.
+        </p>
+
+        <ul
+          :if={@pending_invitations != []}
+          id="pending-invitations"
+          class="divide-y divide-base-300 rounded-box border border-base-300"
+        >
+          <li
+            :for={invitation <- @pending_invitations}
+            id={"invitation-#{invitation.id}"}
+            class="flex items-center justify-between gap-3 px-4 py-3"
+          >
+            <span class="min-w-0">
+              <span class="block truncate">{invitation.email}</span>
+              <span class="text-sm text-base-content/60">
+                invited · {expires_in(invitation.expires_at)}
+              </span>
+            </span>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              phx-click="revoke"
+              phx-value-id={invitation.id}
+              data-confirm={"Revoke the invitation for #{invitation.email}?"}
+            >
+              Revoke
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section :if={@my_invitations != []} id="my-invitations" class="space-y-3 pt-4">
+        <h2 class="text-lg font-semibold">Invitations for you</h2>
+        <p class="text-sm text-base-content/60">
+          To join another household, you'll need to leave this one first.
+        </p>
+        <ul class="divide-y divide-base-300 rounded-box border border-base-300">
+          <li
+            :for={invitation <- @my_invitations}
+            id={"my-invitation-#{invitation.id}"}
+            class="flex items-center justify-between gap-3 px-4 py-3"
+          >
+            <span class="min-w-0 truncate">{invitation.household.name}</span>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              phx-click="decline"
+              phx-value-id={invitation.id}
+            >
+              Decline
+            </button>
+          </li>
+        </ul>
+      </section>
     </Layouts.app>
     """
   end
@@ -120,8 +198,22 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     {:ok,
      socket
      |> assign(page_title: "Household", owner?: Households.owner?(scope))
-     |> assign(members: Households.list_members(scope))
+     |> assign(invite_form: to_form(Households.change_invitation()))
+     |> assign_lists()
      |> assign_form(Households.change_household(scope.household))}
+  end
+
+  defp assign_lists(socket) do
+    scope = socket.assigns.current_scope
+
+    pending =
+      if socket.assigns.owner?, do: Households.list_pending_invitations(scope), else: []
+
+    assign(socket,
+      members: Households.list_members(scope),
+      pending_invitations: pending,
+      my_invitations: Households.list_invitations_for_user(scope)
+    )
   end
 
   @impl true
@@ -150,6 +242,61 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     end
   end
 
+  def handle_event("validate_invite", %{"invitation" => params}, socket) do
+    form = params |> Households.change_invitation() |> Map.put(:action, :validate) |> to_form()
+    {:noreply, assign(socket, invite_form: form)}
+  end
+
+  def handle_event("invite", %{"invitation" => params}, socket) do
+    scope = socket.assigns.current_scope
+
+    case Households.invite(scope, params, &url(~p"/users/log-in/#{&1}"), url(~p"/users/log-in")) do
+      {:ok, invitation} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Invitation sent to #{invitation.email}.")
+         |> assign(invite_form: to_form(Households.change_invitation()))
+         |> assign_lists()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, invite_form: to_form(changeset))}
+
+      {:error, :rate_limited} ->
+        {:noreply, put_flash(socket, :error, "Too many invitations. Please try again later.")}
+
+      {:error, :delivery_failed} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           "The invitation was saved but the email couldn't be sent. Try again shortly."
+         )
+         |> assign_lists()}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "Only the owner can invite people.")}
+    end
+  end
+
+  def handle_event("revoke", %{"id" => id}, socket) do
+    case Households.revoke_invitation(socket.assigns.current_scope, id) do
+      {:ok, invitation} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Invitation for #{invitation.email} revoked.")
+         |> assign_lists()}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket |> put_flash(:error, "That invitation is no longer pending.") |> assign_lists()}
+    end
+  end
+
+  def handle_event("decline", %{"id" => id}, socket) do
+    _ = Households.decline_invitation(socket.assigns.current_scope, id)
+    {:noreply, socket |> put_flash(:info, "Invitation declined.") |> assign_lists()}
+  end
+
   # The scope's household is refreshed by the :require_household hook; keep
   # the form in step when the owner saved from another tab or device.
   @impl true
@@ -157,7 +304,18 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     {:noreply, assign_form(socket, Households.change_household(household))}
   end
 
+  # Someone joined, or invitations changed (possibly from another device).
+  def handle_info({:household_changed, _what}, socket), do: {:noreply, assign_lists(socket)}
+
   def handle_info(_message, socket), do: {:noreply, socket}
 
   defp assign_form(socket, changeset), do: assign(socket, form: to_form(changeset))
+
+  defp expires_in(expires_at) do
+    case DateTime.diff(expires_at, DateTime.utc_now(), :day) do
+      0 -> "expires today"
+      1 -> "expires tomorrow"
+      days -> "expires in #{days} days"
+    end
+  end
 end

@@ -49,6 +49,40 @@ defmodule Mealplan.Accounts.UserNotifier do
     end
   end
 
+  @doc """
+  Deliver an invitation to join a household, with a magic login link.
+  """
+  def deliver_household_invitation(user, url, details) do
+    %{
+      household_name: household,
+      inviter_email: inviter,
+      expires_at: expires_at,
+      login_url: login_url
+    } = details
+
+    deliver(user.email, "#{inviter} invited you to #{household} on Mealplan", """
+
+    ==============================
+
+    Hi #{user.email},
+
+    #{inviter} has invited you to join "#{household}" on Mealplan, to plan
+    meals and share recipes together.
+
+    Log in with this link to join:
+
+    #{url}
+
+    The link works for 15 minutes. After that, go to #{login_url}
+    and log in with this email address. The invitation itself is valid until
+    #{Calendar.strftime(expires_at, "%-d %B %Y")}.
+
+    If you weren't expecting this, you can ignore this email.
+
+    ==============================
+    """)
+  end
+
   defp deliver_magic_link_instructions(user, url) do
     deliver(user.email, "Log in instructions", """
 
