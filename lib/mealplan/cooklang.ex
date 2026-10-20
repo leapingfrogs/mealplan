@@ -309,7 +309,8 @@ defmodule Mealplan.Cooklang do
     value = if is_list(value), do: List.first(value), else: value
 
     with value when is_binary(value) <- value,
-         [digits] <- Regex.run(~r/\A\s*(\d+)/, value, capture: :all_but_first),
+         # The first number: "4", "4 people", "Serves 4", "4 to 6".
+         [digits] <- Regex.run(~r/(\d+)/, value, capture: :all_but_first),
          {servings, ""} when servings > 0 <- Integer.parse(digits) do
       servings
     else

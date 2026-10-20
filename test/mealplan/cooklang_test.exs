@@ -269,10 +269,53 @@ defmodule Mealplan.CooklangTest do
       assert [{5, _unreadable}] = messages(recipe)
     end
 
+    test "wrapped values, block values and wrapped list items, as other tools write them" do
+      source = """
+      ---
+      tags:
+      - Indian
+      - Quick and
+        easy
+      course: Beans Or Pulses, Coconut Milk,
+        Tinned Tomatoes, 16 - 30 Minutes,
+        Easy
+      description: |
+          Line one.
+          Line two.
+
+          New paragraph.
+
+      note: >-
+        Folded
+        together.
+
+        Second.
+      servings: Serves 4
+      ---
+      Cook.
+      """
+
+      recipe = Cooklang.parse(source)
+
+      assert recipe.warnings == []
+
+      assert recipe.metadata == %{
+               "tags" => ["Indian", "Quick and easy"],
+               "course" =>
+                 "Beans Or Pulses, Coconut Milk, Tinned Tomatoes, 16 - 30 Minutes, Easy",
+               "description" => "Line one.\nLine two.\n\nNew paragraph.",
+               "note" => "Folded together.\nSecond.",
+               "servings" => "Serves 4"
+             }
+
+      assert recipe.servings == 4
+    end
+
     test "servings must start with a positive number" do
       assert Cooklang.parse("---\nservings: some\n---").servings == nil
       assert Cooklang.parse("---\nservings: 0\n---").servings == nil
       assert Cooklang.parse("---\nservings: [3, 4]\n---").servings == 3
+      assert Cooklang.parse("---\nservings: 4 to 6 servings\n---").servings == 4
     end
   end
 
