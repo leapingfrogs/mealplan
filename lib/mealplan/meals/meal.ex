@@ -21,7 +21,10 @@ defmodule Mealplan.Meals.Meal do
 
     belongs_to :household, Household
     belongs_to :created_by, User
-    has_many :meal_recipes, MealRecipe, preload_order: [asc: :position]
+    # The current recipes; `recipe_history` also has removed ones (see
+    # `Mealplan.Meals.recipes_on/3`).
+    has_many :meal_recipes, MealRecipe, where: [removed_on: nil], preload_order: [asc: :position]
+    has_many :recipe_history, MealRecipe, preload_order: [asc: :position]
 
     timestamps(type: :utc_datetime)
   end

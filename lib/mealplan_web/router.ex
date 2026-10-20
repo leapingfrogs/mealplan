@@ -99,9 +99,11 @@ defmodule MealplanWeb.Router do
       live "/household", HouseholdLive.Settings, :edit
       live "/recipes", RecipeLive.Index, :index
       live "/recipes/new", RecipeLive.Form, :new
+      live "/recipes/archived", RecipeLive.Archived, :index
       live "/recipes/:id", RecipeLive.Show, :show
       live "/recipes/:id/edit", RecipeLive.Form, :edit
       live "/meals", MealLive.Index, :index
+      live "/meals/archived", MealLive.Archived, :index
       live "/meals/:id", MealLive.Show, :show
     end
 

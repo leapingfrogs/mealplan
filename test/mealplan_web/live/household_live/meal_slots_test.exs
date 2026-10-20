@@ -94,18 +94,6 @@ defmodule MealplanWeb.HouseholdLive.MealSlotsTest do
       assert names(scope) == ~w(Breakfast Lunch Dinner)
     end
 
-    test "is told a slot with planned meals can't be deleted yet", %{conn: conn, scope: scope} do
-      snack = slot(scope, "Snack")
-      meal = Mealplan.MealsFixtures.meal_fixture(scope)
-      {:ok, _} = Mealplan.Planning.plan_meal(scope, ~D[2026-11-02], snack.id, meal.id)
-      {:ok, view, _html} = live(conn, ~p"/household")
-
-      html = view |> element("#slot-#{snack.id} button", "Delete") |> render_click()
-
-      assert html =~ "has planned meals"
-      assert has_element?(view, "#slot-#{snack.id}")
-    end
-
     test "restores the defaults, offered only when one is missing", %{conn: conn, scope: scope} do
       {:ok, view, _html} = live(conn, ~p"/household")
       refute has_element?(view, "#restore-default-slots")

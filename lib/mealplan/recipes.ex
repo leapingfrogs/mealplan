@@ -13,6 +13,12 @@ defmodule Mealplan.Recipes do
   alias Mealplan.Cooklang
   alias Mealplan.Households
   alias Mealplan.Households.Household
+  alias Mealplan.Meals
+  alias Mealplan.Meals.Meal
+  alias Mealplan.Meals.MealRecipe
+  alias Mealplan.Planning
+  alias Mealplan.Planning.Leftover
+  alias Mealplan.Planning.PlannedMeal
   alias Mealplan.Recipes.Recipe
   alias Mealplan.Recipes.RecipeIngredient
   alias Mealplan.Repo
@@ -95,6 +101,120 @@ defmodule Mealplan.Recipes do
   end
 
   def update_recipe(%Scope{}, %Recipe{}, _attrs), do: {:error, :not_found}
+
+  ## Deleting and archiving
+
+  @doc """
+  What deleting a recipe will do: the active `meals` it will be taken out
+  of, and whether it will be archived (`archive?`) because a plan before
+  today used it, rather than deleted.
+  """
+  def deletion_preview(%Scope{} = scope, %Recipe{} = recipe) do
+    meals =
+      Repo.all(
+        from m in Meal,
+          join: mr in assoc(m, :meal_recipes),
+          where: mr.recipe_id == ^recipe.id and is_nil(m.archived_at),
+          order_by: fragment("lower(?)", m.name)
+      )
+
+    %{meals: meals, archive?: used_before?(recipe, Planning.today(scope))}
+  end
+
+  @doc """
+  Deletes a recipe: it is taken out of every meal, and leftover links for
+  it from today on go. If a plan before today used it, it is archived
+  instead and the meals those plans used keep it in their history (see
+  `Mealplan.Meals.recipes_on/3`); otherwise it is deleted. Returns
+  `{:ok, :archived}` or `{:ok, :deleted}`.
+  """
+  def delete_recipe(
+        %Scope{household: %Household{id: household_id}} = scope,
+        %Recipe{household_id: household_id} = recipe
+      ) do
+    today = Planning.today(scope)
+
+    result =
+      Repo.transact(fn ->
+        archive? = used_before?(recipe, today)
+
+        upcoming = from pm in PlannedMeal, where: pm.date >= ^today, select: pm.id
+
+        {_count, _} =
+          Repo.delete_all(
+            from l in Leftover,
+              where: l.recipe_id == ^recipe.id and l.planned_meal_id in subquery(upcoming)
+          )
+
+        :ok =
+          Meals.take_out(
+            scope,
+            from(mr in MealRecipe, where: mr.recipe_id == ^recipe.id and is_nil(mr.removed_on))
+          )
+
+        if archive? do
+          {:ok, _recipe} =
+            recipe
+            |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second))
+            |> Repo.update()
+
+          {:ok, :archived}
+        else
+          {:ok, _recipe} = Repo.delete(recipe)
+          {:ok, :deleted}
+        end
+      end)
+
+    with {:ok, _outcome} <- result do
+      :ok = Households.broadcast(scope, {:recipe_changed, recipe.id})
+      :ok = Households.broadcast(scope, {:plan_changed, Planning.week_start(today)})
+      result
+    end
+  end
+
+  def delete_recipe(%Scope{}, %Recipe{}), do: {:error, :not_found}
+
+  defp used_before?(recipe, today) do
+    Repo.exists?(
+      from pm in PlannedMeal,
+        join: mr in MealRecipe,
+        on: mr.meal_id == pm.meal_id,
+        where:
+          mr.recipe_id == ^recipe.id and pm.date < ^today and
+            (is_nil(mr.removed_on) or mr.removed_on > pm.date)
+    ) or
+      Repo.exists?(
+        from l in Leftover,
+          join: pm in assoc(l, :planned_meal),
+          where: l.recipe_id == ^recipe.id and pm.date < ^today
+      )
+  end
+
+  @doc "Lists the household's archived recipes by name."
+  def list_archived_recipes(%Scope{household: %Household{id: household_id}}) do
+    Repo.all(
+      from r in Recipe,
+        where: r.household_id == ^household_id and not is_nil(r.archived_at),
+        order_by: fragment("lower(?)", r.name)
+    )
+  end
+
+  @doc "Restores an archived recipe to lists and pickers."
+  def restore_recipe(%Scope{household: %Household{id: household_id}} = scope, recipe_id) do
+    with {:ok, id} <- Ecto.UUID.cast(recipe_id),
+         %Recipe{} = recipe <-
+           Repo.one(
+             from r in Recipe,
+               where:
+                 r.id == ^id and r.household_id == ^household_id and not is_nil(r.archived_at)
+           ),
+         {:ok, recipe} <- recipe |> Ecto.Changeset.change(archived_at: nil) |> Repo.update() do
+      :ok = Households.broadcast(scope, {:recipe_changed, recipe.id})
+      {:ok, recipe}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
 
   defp save(changeset, scope, write) do
     result =

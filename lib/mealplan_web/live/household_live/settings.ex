@@ -231,6 +231,49 @@ defmodule MealplanWeb.HouseholdLive.Settings do
             }
           }
         </script>
+        <div
+          :if={@deleting_slot}
+          id="delete-slot-panel"
+          role="alert"
+          class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
+        >
+          <p class="text-sm">
+            <strong>{@deleting_slot.slot.name}</strong>
+            has {length(@deleting_slot.upcoming)} {if length(@deleting_slot.upcoming) == 1,
+              do: "meal",
+              else: "meals"} planned from today: {Enum.map_join(
+              @deleting_slot.upcoming,
+              ", ",
+              &"#{&1.meal.name} (#{Calendar.strftime(&1.date, "%a %-d %b")})"
+            )}.
+            <span :if={@deleting_slot.archive?}>
+              Past weeks will still show it.
+            </span>
+          </p>
+          <form
+            id="delete-slot-form"
+            phx-submit="confirm_delete_slot"
+            class="flex flex-wrap items-end gap-2"
+          >
+            <label class="flex-1 min-w-48">
+              <span class="label mb-1 text-sm">Those meals</span>
+              <select name="upcoming" class="select w-full">
+                <option
+                  :for={slot <- @meal_slots}
+                  :if={slot.id != @deleting_slot.slot.id}
+                  value={slot.id}
+                >
+                  Move to {slot.name}
+                </option>
+                <option value="remove">Remove them from the plan</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-ghost" phx-click="cancel_delete_slot">
+              Cancel
+            </button>
+            <button class="btn btn-error">Delete {@deleting_slot.slot.name}</button>
+          </form>
+        </div>
         <.form
           :if={@owner?}
           for={@new_slot_form}
@@ -420,7 +463,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
      socket
      |> assign(page_title: "Household", owner?: Households.owner?(scope))
      |> assign(invite_form: to_form(Households.change_invitation()))
-     |> assign(editing_slot_id: nil, slot_form: nil)
+     |> assign(editing_slot_id: nil, slot_form: nil, deleting_slot: nil)
      |> assign_new_slot_form(Households.change_meal_slot())
      |> assign_lists()
      |> assign_form(Households.change_household(scope.household))}
@@ -592,22 +635,23 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     end
   end
 
+  # Meals planned in the slot from today on need a decision first.
   def handle_event("delete_slot", %{"id" => id}, socket) do
-    case Households.delete_meal_slot(socket.assigns.current_scope, id) do
-      {:ok, slot} ->
-        {:noreply, socket |> put_flash(:info, "#{slot.name} deleted.") |> assign_lists()}
-
-      {:error, :last_slot} ->
-        {:noreply, put_flash(socket, :error, "A household needs at least one meal slot.")}
-
-      {:error, :in_use} ->
-        {:noreply,
-         put_flash(socket, :error, "That slot has planned meals, so it can't be deleted yet.")}
-
-      {:error, _reason} ->
-        {:noreply, slot_error(socket)}
+    case Households.slot_deletion_preview(socket.assigns.current_scope, id) do
+      {:ok, %{upcoming: []}} -> delete_slot(socket, id, nil)
+      {:ok, preview} -> {:noreply, assign(socket, deleting_slot: preview)}
+      {:error, _reason} -> {:noreply, slot_error(socket)}
     end
   end
+
+  def handle_event("confirm_delete_slot", %{"upcoming" => choice}, socket) do
+    %{slot: slot} = socket.assigns.deleting_slot
+    choice = if choice == "remove", do: :remove, else: choice
+    delete_slot(assign(socket, deleting_slot: nil), slot.id, choice)
+  end
+
+  def handle_event("cancel_delete_slot", _params, socket),
+    do: {:noreply, assign(socket, deleting_slot: nil)}
 
   def handle_event("move_slot", %{"id" => id, "direction" => direction}, socket) do
     direction = if direction == "up", do: :up, else: :down
@@ -722,6 +766,25 @@ defmodule MealplanWeb.HouseholdLive.Settings do
   def handle_info(_message, socket), do: {:noreply, socket}
 
   defp assign_form(socket, changeset), do: assign(socket, form: to_form(changeset))
+
+  defp delete_slot(socket, id, upcoming) do
+    case Households.delete_meal_slot(socket.assigns.current_scope, id, upcoming) do
+      {:ok, %{archived_at: nil} = slot} ->
+        {:noreply, socket |> put_flash(:info, "#{slot.name} deleted.") |> assign_lists()}
+
+      {:ok, slot} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{slot.name} removed. Past weeks still show it.")
+         |> assign_lists()}
+
+      {:error, :last_slot} ->
+        {:noreply, put_flash(socket, :error, "A household needs at least one meal slot.")}
+
+      {:error, _reason} ->
+        {:noreply, slot_error(socket)}
+    end
+  end
 
   defp assign_new_slot_form(socket, changeset),
     do: assign(socket, new_slot_form: to_form(changeset, as: :new_slot))

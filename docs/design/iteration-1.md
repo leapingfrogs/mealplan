@@ -111,7 +111,7 @@ takes milliseconds, so there is no derived copy to keep in step.
 |---|---|
 | `meals.name` | Required; unique per household among active meals, ignoring case. A meal may have no recipes ("Eat out") |
 | `meals.archived_at` | The archive rule |
-| `meal_recipes` | `meal_id`, `recipe_id`, `position`; unique pair. Composite keys with `household_id` keep both in one household |
+| `meal_recipes` | `meal_id`, `recipe_id`, `position`, `removed_on`. A recipe is in a meal once at a time. Taking it out of a meal that past plans used sets `removed_on` (household-local date) instead of deleting the row, so those planned meals still resolve to their recipes, archived ones included. Composite keys with `household_id` keep both in one household |
 
 Planning a recipe directly creates a one-recipe meal named after the recipe, or
 reuses it if it exists.
@@ -202,6 +202,19 @@ archives it instead (`archived_at`). Archived items disappear from lists and
 pickers but still show in past weeks, and can be restored. Planned meals dated
 today or later that use a deleted meal are removed, after a confirmation that
 lists them. Anything never planned is deleted outright.
+
+In detail:
+
+- **Recipe:** taken out of every meal (rows past plans relied on keep
+  `removed_on`), and leftover links for it from today on go; archived if a
+  past plan used it, else deleted.
+- **Meal:** planned meals from today on are removed; archived if planned
+  before today, else deleted. Restoring is refused while another meal has its
+  name.
+- **Slot:** meals planned in it from today on must first be moved to another
+  slot or removed, and its skips from today on go; archived if a past plan
+  used it, else deleted. Past weeks show an archived slot, marked removed, on
+  the days it holds meals.
 
 ## Invitations
 

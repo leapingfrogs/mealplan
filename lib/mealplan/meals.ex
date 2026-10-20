@@ -14,6 +14,8 @@ defmodule Mealplan.Meals do
   alias Mealplan.Households.Household
   alias Mealplan.Meals.Meal
   alias Mealplan.Meals.MealRecipe
+  alias Mealplan.Planning
+  alias Mealplan.Planning.PlannedMeal
   alias Mealplan.Recipes.Recipe
   alias Mealplan.Repo
 
@@ -23,7 +25,7 @@ defmodule Mealplan.Meals do
   """
   def list_meals(%Scope{household: %Household{id: household_id}}, search \\ "") do
     recipe_count =
-      from mr in MealRecipe, where: mr.meal_id == parent_as(:meal).id, select: count()
+      from mr in current_recipes(), where: mr.meal_id == parent_as(:meal).id, select: count()
 
     from(m in Meal,
       as: :meal,
@@ -41,7 +43,7 @@ defmodule Mealplan.Meals do
     pattern = "%" <> escape_like(term) <> "%"
 
     recipe_matches =
-      from mr in MealRecipe,
+      from mr in current_recipes(),
         join: r in assoc(mr, :recipe),
         where: mr.meal_id == parent_as(:meal).id and ilike(r.name, ^pattern)
 
@@ -91,7 +93,9 @@ defmodule Mealplan.Meals do
          {:ok, recipe} <- fetch_recipe(household_id, recipe_id),
          :ok <- not_in_meal(meal, recipe) do
       last =
-        Repo.one(from mr in MealRecipe, where: mr.meal_id == ^meal.id, select: max(mr.position))
+        Repo.one(
+          from mr in current_recipes(), where: mr.meal_id == ^meal.id, select: max(mr.position)
+        )
 
       %MealRecipe{
         household_id: household_id,
@@ -100,7 +104,9 @@ defmodule Mealplan.Meals do
         position: (last || -1) + 1
       }
       |> Ecto.Changeset.change()
-      |> Ecto.Changeset.unique_constraint([:meal_id, :recipe_id])
+      |> Ecto.Changeset.unique_constraint([:meal_id, :recipe_id],
+        name: :meal_recipes_current_index
+      )
       |> Repo.insert()
       |> case do
         {:ok, _meal_recipe} -> broadcast({:ok, meal}, scope)
@@ -109,13 +115,20 @@ defmodule Mealplan.Meals do
     end
   end
 
-  @doc "Removes a recipe from a meal (the recipe itself is untouched)."
+  @doc """
+  Removes a recipe from a meal (the recipe itself is untouched). If the meal
+  was planned before today the link is kept with `removed_on` set, so those
+  past plans still have the recipe; otherwise it is deleted.
+  """
   def remove_recipe(%Scope{} = scope, meal_id, recipe_id) do
     with {:ok, meal} <- fetch_meal(scope, meal_id),
          {:ok, recipe_id} <- Ecto.UUID.cast(recipe_id) do
-      {_count, _} =
-        Repo.delete_all(
-          from mr in MealRecipe, where: mr.meal_id == ^meal.id and mr.recipe_id == ^recipe_id
+      :ok =
+        take_out(
+          scope,
+          from(mr in current_recipes(),
+            where: mr.meal_id == ^meal.id and mr.recipe_id == ^recipe_id
+          )
         )
 
       broadcast({:ok, meal}, scope)
@@ -158,7 +171,9 @@ defmodule Mealplan.Meals do
         |> Enum.with_index()
         |> Enum.each(fn {recipe_id, position} ->
           Repo.update_all(
-            from(mr in MealRecipe, where: mr.meal_id == ^meal.id and mr.recipe_id == ^recipe_id),
+            from(mr in current_recipes(),
+              where: mr.meal_id == ^meal.id and mr.recipe_id == ^recipe_id
+            ),
             set: [position: position]
           )
         end)
@@ -167,6 +182,121 @@ defmodule Mealplan.Meals do
       end)
 
     :ok
+  end
+
+  ## Deleting and archiving
+
+  @doc """
+  What deleting a meal will do: the `upcoming` planned meals (today on,
+  with their slots) that will be removed, and whether it will be archived
+  (`archive?`) because it was planned before today, rather than deleted.
+  """
+  def deletion_preview(%Scope{} = scope, %Meal{} = meal) do
+    today = Planning.today(scope)
+
+    upcoming =
+      Repo.all(
+        from pm in PlannedMeal,
+          join: s in assoc(pm, :meal_slot),
+          where: pm.meal_id == ^meal.id and pm.date >= ^today,
+          order_by: [asc: pm.date, asc: s.position],
+          preload: [meal_slot: s]
+      )
+
+    %{upcoming: upcoming, archive?: planned_before?(meal, today)}
+  end
+
+  @doc """
+  Deletes a meal: its planned meals from today on are removed (with their
+  leftover links). If it was planned before today it is archived instead,
+  so history keeps it; otherwise it is deleted. Returns `{:ok, :archived}`
+  or `{:ok, :deleted}`.
+  """
+  def delete_meal(
+        %Scope{household: %Household{id: household_id}} = scope,
+        %Meal{household_id: household_id} = meal
+      ) do
+    today = Planning.today(scope)
+
+    result =
+      Repo.transact(fn ->
+        weeks =
+          Repo.all(
+            from pm in PlannedMeal,
+              where: pm.meal_id == ^meal.id and pm.date >= ^today,
+              select: pm.date
+          )
+
+        {_count, _} =
+          Repo.delete_all(
+            from pm in PlannedMeal, where: pm.meal_id == ^meal.id and pm.date >= ^today
+          )
+
+        outcome =
+          if planned_before?(meal, today) do
+            {:ok, _meal} =
+              meal
+              |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second))
+              |> Repo.update()
+
+            :archived
+          else
+            {:ok, _meal} = Repo.delete(meal)
+            :deleted
+          end
+
+        {:ok, {outcome, weeks}}
+      end)
+
+    with {:ok, {outcome, dates}} <- result do
+      :ok = Households.broadcast(scope, {:meal_changed, meal.id})
+
+      for week <- dates |> Enum.map(&Planning.week_start/1) |> Enum.uniq() do
+        :ok = Households.broadcast(scope, {:plan_changed, week})
+      end
+
+      {:ok, outcome}
+    end
+  end
+
+  def delete_meal(%Scope{}, %Meal{}), do: {:error, :not_found}
+
+  defp planned_before?(meal, today) do
+    Repo.exists?(from pm in PlannedMeal, where: pm.meal_id == ^meal.id and pm.date < ^today)
+  end
+
+  @doc "Lists the household's archived meals by name."
+  def list_archived_meals(%Scope{household: %Household{id: household_id}}) do
+    Repo.all(
+      from m in Meal,
+        where: m.household_id == ^household_id and not is_nil(m.archived_at),
+        order_by: fragment("lower(?)", m.name)
+    )
+  end
+
+  @doc """
+  Restores an archived meal to lists and pickers. Refused with a changeset
+  error if an active meal has taken its name meanwhile.
+  """
+  def restore_meal(%Scope{household: %Household{id: household_id}} = scope, meal_id) do
+    with {:ok, id} <- Ecto.UUID.cast(meal_id),
+         %Meal{} = meal <-
+           Repo.one(
+             from m in Meal,
+               where:
+                 m.id == ^id and m.household_id == ^household_id and not is_nil(m.archived_at)
+           ) do
+      meal
+      |> Ecto.Changeset.change(archived_at: nil)
+      |> Ecto.Changeset.unique_constraint(:name,
+        name: :meals_household_id_name_index,
+        message: "is already a meal"
+      )
+      |> Repo.update()
+      |> broadcast(scope)
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   defp fetch_meal(%Scope{household: %Household{id: household_id}}, meal_id) do
@@ -199,10 +329,55 @@ defmodule Mealplan.Meals do
 
   defp not_in_meal(meal, recipe) do
     if Repo.exists?(
-         from mr in MealRecipe, where: mr.meal_id == ^meal.id and mr.recipe_id == ^recipe.id
+         from mr in current_recipes(),
+           where: mr.meal_id == ^meal.id and mr.recipe_id == ^recipe.id
        ),
        do: {:error, :already_in_meal},
        else: :ok
+  end
+
+  defp current_recipes, do: from(mr in MealRecipe, where: is_nil(mr.removed_on))
+
+  @doc """
+  Takes recipes out of meals (`links` is a query of current meal recipes):
+  links that past plans of their meal relied on are kept with `removed_on`
+  set to today; the rest are deleted.
+  """
+  def take_out(%Scope{} = scope, links) do
+    today = Planning.today(scope)
+
+    kept =
+      Repo.all(
+        from mr in links,
+          join: pm in PlannedMeal,
+          on: pm.meal_id == mr.meal_id and pm.date < ^today,
+          distinct: true,
+          select: mr.id
+      )
+
+    {_count, _} =
+      Repo.update_all(from(mr in MealRecipe, where: mr.id in ^kept), set: [removed_on: today])
+
+    {_count, _} = Repo.delete_all(from mr in links, where: mr.id not in ^kept)
+    :ok
+  end
+
+  @doc """
+  The recipes a meal had on `date`: what a planned meal on that date was
+  made of, including recipes since taken out of the meal or archived. (A
+  recipe added to the meal later counts too; only removals are dated.)
+  """
+  def recipes_on(%Scope{household: %Household{id: household_id}}, meal_id, %Date{} = date) do
+    Repo.all(
+      from mr in MealRecipe,
+        join: m in assoc(mr, :meal),
+        join: r in assoc(mr, :recipe),
+        where:
+          mr.meal_id == ^meal_id and m.household_id == ^household_id and
+            (is_nil(mr.removed_on) or mr.removed_on > ^date),
+        order_by: mr.position,
+        select: r
+    )
   end
 
   defp broadcast({:ok, %Meal{} = meal}, scope) do
