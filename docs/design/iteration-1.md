@@ -2,11 +2,12 @@
 
 Agreed 20 October 2026. Covers the stories in [USER_STORIES.md](../../USER_STORIES.md).
 The shopping list is designed at the data-model level so iteration 1 doesn't
-block it, but it's built in iteration 2.
+block it, but it's built in iteration 3. (It was iteration 2 until import and export
+were put first: see [iteration 2](iteration-2.md).)
 
 ## Scope
 
-| Iteration 1 | Iteration 2 | Later |
+| Iteration 1 | Iteration 3 | Later |
 |---|---|---|
 | Create a household, invite and remove members, leave, transfer ownership, delete | Shopping list for a date range from planned meals | Recipe import from a URL |
 | Recipes in Cooklang with live preview; archive and restore | Scale to cooked servings; merge matching ingredients; convert within g/kg and ml/l | Photos, nutrition, pantry stock |
@@ -42,7 +43,7 @@ erDiagram
   MEAL_SLOTS ||--o{ SLOT_SKIPS : "skipped on a date"
 ```
 
-Iteration 2 adds `shopping_lists`, `shopping_list_items` and `staples` on the
+Iteration 3 adds `shopping_lists`, `shopping_list_items` and `staples` on the
 same keys.
 
 ### households (new)
@@ -91,7 +92,7 @@ same keys.
 
 ### recipe_ingredients (new)
 
-Derived from `source` on save, stored as rows so the iteration 2 shopping list
+Derived from `source` on save, stored as rows so the iteration 3 shopping list
 can aggregate in SQL.
 
 | Field | Notes |
@@ -238,7 +239,7 @@ accepting.
 ## Screens
 
 Phone first. A bottom tab bar: **Plan**, **Recipes**, **Meals**, **Household**
-(iteration 2 adds **Shopping**). On wider screens it becomes a sidebar and the
+(iteration 3 adds **Shopping**). On wider screens it becomes a sidebar and the
 week shows as a 7-column grid. The wireframes are in the design page that was
 reviewed; their content:
 
@@ -287,7 +288,7 @@ reviewed; their content:
 
 **Live updates:** each context broadcasts on a per-household PubSub topic
 (`household:<id>`). Open week plans, recipe lists and the household page update
-for every member without reloading; iteration 2's shared shopping list relies
+for every member without reloading; iteration 3's shared shopping list relies
 on the same mechanism. Removing a member or deleting the household disconnects
 that user's LiveViews.
 
