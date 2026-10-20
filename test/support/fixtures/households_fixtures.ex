@@ -29,4 +29,19 @@ defmodule Mealplan.HouseholdsFixtures do
     user = %{user | household_id: household.id, household: household}
     %{user: user, household: household, scope: Scope.for_user(user)}
   end
+
+  @doc """
+  Adds a new (non-owner) member to `household` and returns
+  `%{user: user, scope: scope}`. Joining by invitation replaces this once
+  invitations exist.
+  """
+  def member_fixture(household) do
+    user =
+      AccountsFixtures.user_fixture()
+      |> Ecto.Changeset.change(household_id: household.id)
+      |> Mealplan.Repo.update!()
+      |> Map.put(:household, household)
+
+    %{user: user, scope: Scope.for_user(user)}
+  end
 end

@@ -236,8 +236,8 @@ defmodule MealplanWeb.UserAuth do
     socket = mount_current_scope(socket, session)
 
     case socket.assigns.current_scope do
-      %Scope{household: %Mealplan.Households.Household{}} ->
-        {:cont, socket}
+      %Scope{household: %Mealplan.Households.Household{}} = scope ->
+        {:cont, keep_household_current(socket, scope)}
 
       _no_household ->
         {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/welcome")}
@@ -269,6 +269,32 @@ defmodule MealplanWeb.UserAuth do
 
       {:halt, socket}
     end
+  end
+
+  # Every household page is subscribed to its household's changes and follows
+  # household updates (e.g. a rename shown in the header) without reloading.
+  # Messages are passed on to the LiveView only if it defines handle_info/2,
+  # so pages that don't care about household events need no handler.
+  defp keep_household_current(socket, scope) do
+    if Phoenix.LiveView.connected?(socket) do
+      :ok = Mealplan.Households.subscribe(scope)
+      Phoenix.LiveView.attach_hook(socket, :household_updates, :handle_info, &household_event/2)
+    else
+      socket
+    end
+  end
+
+  defp household_event({:household_updated, household}, socket) do
+    scope = %{socket.assigns.current_scope | household: household}
+    pass_on(Phoenix.Component.assign(socket, :current_scope, scope))
+  end
+
+  defp household_event(_message, socket), do: pass_on(socket)
+
+  defp pass_on(socket) do
+    if function_exported?(socket.view, :handle_info, 2),
+      do: {:cont, socket},
+      else: {:halt, socket}
   end
 
   defp mount_current_scope(socket, session) do

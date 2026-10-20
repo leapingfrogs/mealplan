@@ -88,6 +88,64 @@ defmodule Mealplan.HouseholdsTest do
     end
   end
 
+  describe "owner?/1" do
+    test "is true only for the household's owner" do
+      %{scope: owner_scope, household: household} = household_fixture()
+      %{scope: member_scope} = member_fixture(household)
+
+      assert Households.owner?(owner_scope)
+      refute Households.owner?(member_scope)
+    end
+  end
+
+  describe "update_household/2" do
+    test "lets the owner update the details and tells the household" do
+      %{scope: scope} = household_fixture()
+      :ok = Households.subscribe(scope)
+
+      assert {:ok, household} =
+               Households.update_household(scope, %{
+                 name: "Renamed",
+                 usually_feeding: 6,
+                 time_zone: "America/New_York"
+               })
+
+      assert %{name: "Renamed", usually_feeding: 6, time_zone: "America/New_York"} = household
+      assert_receive {:household_updated, %Household{name: "Renamed"}}
+    end
+
+    test "validates like creation" do
+      %{scope: scope} = household_fixture()
+
+      assert {:error, changeset} =
+               Households.update_household(scope, %{name: "", time_zone: "Nowhere/Land"})
+
+      assert %{name: ["can't be blank"], time_zone: ["is not a known time zone"]} =
+               errors_on(changeset)
+    end
+
+    test "refuses members who aren't the owner" do
+      %{household: household} = household_fixture(user_fixture(), %{name: "Original"})
+      %{scope: member_scope} = member_fixture(household)
+
+      assert Households.update_household(member_scope, %{name: "Hijacked"}) ==
+               {:error, :unauthorized}
+
+      assert Repo.get!(Household, household.id).name == "Original"
+    end
+  end
+
+  describe "list_members/1" do
+    test "lists the household's members, owner first" do
+      owner = user_fixture(email: "zed@example.com")
+      %{scope: scope, household: household} = household_fixture(owner)
+      %{user: member} = member_fixture(household)
+      household_fixture()
+
+      assert Enum.map(Households.list_members(scope), & &1.id) == [owner.id, member.id]
+    end
+  end
+
   describe "list_meal_slots/1" do
     test "only lists the scope's household's active slots" do
       %{scope: scope, household: household} = household_fixture()

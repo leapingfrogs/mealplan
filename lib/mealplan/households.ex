@@ -26,6 +26,34 @@ defmodule Mealplan.Households do
 
   defp topic(household_id), do: "household:#{household_id}"
 
+  @doc "True when the scope's user owns its household."
+  def owner?(%Scope{user: %User{id: user_id}, household: %Household{owner_id: user_id}}), do: true
+  def owner?(%Scope{}), do: false
+
+  @doc """
+  Updates the household's name, usual number of servings or time zone.
+  Owner only. Members' open pages receive `{:household_updated, household}`.
+  """
+  def update_household(%Scope{household: %Household{} = household} = scope, attrs) do
+    if owner?(scope) do
+      with {:ok, household} <- household |> Household.changeset(attrs) |> Repo.update() do
+        :ok = broadcast(scope, {:household_updated, household})
+        {:ok, household}
+      end
+    else
+      {:error, :unauthorized}
+    end
+  end
+
+  @doc "Lists the household's members, the owner first, then by email."
+  def list_members(%Scope{household: %Household{id: household_id, owner_id: owner_id}}) do
+    Repo.all(
+      from u in User,
+        where: u.household_id == ^household_id,
+        order_by: [desc: u.id == ^owner_id, asc: u.email]
+    )
+  end
+
   @doc "Returns a changeset for the household form."
   def change_household(%Household{} = household \\ %Household{}, attrs \\ %{}) do
     Household.changeset(household, attrs)

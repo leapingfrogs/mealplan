@@ -35,13 +35,17 @@ defmodule Mealplan.Households.Household do
   def changeset(household, attrs) do
     household
     |> cast(attrs, [:name, :time_zone, :usually_feeding])
-    |> update_change(:name, &String.trim/1)
+    |> update_change(:name, &trim/1)
     |> validate_required([:name, :time_zone, :usually_feeding])
     |> validate_length(:name, max: 80)
     |> validate_number(:usually_feeding, greater_than: 0, less_than_or_equal_to: @max_feeding)
     |> validate_change(:time_zone, &validate_time_zone/2)
     |> check_constraint(:usually_feeding, name: :usually_feeding_positive)
   end
+
+  # Blank names arrive as nil (Ecto treats whitespace-only as empty).
+  defp trim(nil), do: nil
+  defp trim(name), do: String.trim(name)
 
   defp validate_time_zone(:time_zone, time_zone) do
     case DateTime.now(time_zone) do
