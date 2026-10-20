@@ -347,14 +347,43 @@ defmodule Mealplan.Accounts do
   @doc """
   Emails `user` an invitation to join a household, with a magic login link.
 
-  `details` has `:household_name`, `:inviter_email`, `:expires_at` and
-  `:login_url` (where to ask for a fresh link once this one has expired).
+  New (unconfirmed) accounts get a link that works for the invitation's whole
+  lifetime, replacing any earlier link for the same invitation; existing
+  accounts get the usual short-lived link, since they can always log in
+  normally.
+
+  `details` has `:invitation_id`, `:household_name`, `:inviter_email`,
+  `:expires_at` and `:login_url` (where to ask for a fresh link).
   """
   def deliver_household_invitation(%User{} = user, details, magic_link_url_fun)
       when is_function(magic_link_url_fun, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
+    long_lived? = is_nil(user.confirmed_at)
+
+    {encoded_token, user_token} =
+      if long_lived? do
+        :ok = delete_invitation_tokens(details.invitation_id)
+        UserToken.build_invitation_token(user, details.invitation_id)
+      else
+        UserToken.build_email_token(user, "login")
+      end
+
     Repo.insert!(user_token)
-    UserNotifier.deliver_household_invitation(user, magic_link_url_fun.(encoded_token), details)
+
+    UserNotifier.deliver_household_invitation(
+      user,
+      magic_link_url_fun.(encoded_token),
+      Map.put(details, :link_lasts_until_expiry, long_lived?)
+    )
+  end
+
+  @doc """
+  Invalidates an invitation's login links (when it's renewed, revoked or
+  declined).
+  """
+  def delete_invitation_tokens(invitation_id) do
+    context = UserToken.invitation_context(invitation_id)
+    Repo.delete_all(from(t in UserToken, where: t.context == ^context))
+    :ok
   end
 
   @doc """

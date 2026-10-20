@@ -233,6 +233,7 @@ defmodule Mealplan.Households do
     with {:ok, user} <- Accounts.get_or_create_user_by_email(email),
          {:ok, invitation} <- upsert_invitation(scope, email) do
       details = %{
+        invitation_id: invitation.id,
         household_name: scope.household.name,
         inviter_email: scope.user.email,
         expires_at: invitation.expires_at,
@@ -330,6 +331,7 @@ defmodule Mealplan.Households do
   def decline_invitation(%Scope{user: %User{} = user}, invitation_id) do
     with {:ok, invitation} <- fetch_invitation_for(user, invitation_id),
          {:ok, invitation} <- close_invitation(invitation, :declined_at) do
+      :ok = Accounts.delete_invitation_tokens(invitation.id)
       :ok = broadcast_to(invitation.household_id, {:household_changed, :invitations})
       {:ok, invitation}
     end
@@ -344,6 +346,7 @@ defmodule Mealplan.Households do
                where: i.household_id == ^household_id and i.id == ^invitation_id
            ) || {:error, :not_found},
          {:ok, invitation} <- close_invitation(invitation, :revoked_at) do
+      :ok = Accounts.delete_invitation_tokens(invitation.id)
       :ok = broadcast(scope, {:household_changed, :invitations})
       {:ok, invitation}
     end
