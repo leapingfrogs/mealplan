@@ -16,59 +16,50 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-form space-y-8">
-        <section :if={@invitations != []} id="invitations" class="space-y-3">
-          <.header>
-            You've been invited
-            <:subtitle>Join a household, or create your own below.</:subtitle>
-          </.header>
-          <ul class="divide-y divide-base-300 rounded-box border border-base-300">
-            <li
-              :for={invitation <- @invitations}
-              id={"invitation-#{invitation.id}"}
-              class="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-            >
-              <span class="min-w-0">
-                <span class="block font-medium truncate">{invitation.household.name}</span>
-                <span :if={invitation.invited_by} class="text-sm text-base-content/60 truncate">
-                  from {invitation.invited_by.email}
-                </span>
-              </span>
-              <span class="flex gap-2">
+      <div class="mx-auto max-w-form space-y-6">
+        <.section_card
+          :if={@invitations != []}
+          id="invitations"
+          title="You've been invited"
+          help="Join a household, or set up your own below."
+        >
+          <.row_list id="invitation-list">
+            <.list_row :for={invitation <- @invitations} id={"invitation-#{invitation.id}"}>
+              {invitation.household.name}
+              <:meta :if={invitation.invited_by}>from {invitation.invited_by.email}</:meta>
+              <:actions>
                 <button
                   type="button"
-                  class="btn btn-primary btn-sm"
-                  phx-click="join"
-                  phx-value-id={invitation.id}
-                >
-                  Join
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm"
+                  class="btn btn-ghost"
                   phx-click="decline"
                   phx-value-id={invitation.id}
                 >
                   Decline
                 </button>
-              </span>
-            </li>
-          </ul>
-        </section>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  phx-click="join"
+                  phx-value-id={invitation.id}
+                >
+                  Join
+                </button>
+              </:actions>
+            </.list_row>
+          </.row_list>
+        </.section_card>
 
-        <.header>
+        <.page_header>
           Set up your household
-          <:subtitle>
-            Recipes, meals and plans are shared with everyone in your household.
-          </:subtitle>
-        </.header>
+          <:meta>Recipes, meals and plans are shared with everyone in your household.</:meta>
+        </.page_header>
 
         <.form
           for={@form}
           id="household-form"
           phx-change="validate"
           phx-submit="save"
-          class="space-y-2"
+          class="space-y-5 rounded-box border border-base-300 bg-base-100 p-4 sm:p-5"
         >
           <.input
             field={@form[:name]}
@@ -77,72 +68,78 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
             autocomplete="off"
             phx-mounted={JS.focus()}
           />
-          <.input
+          <.stepper_field
             field={@form[:usually_feeding]}
-            type="number"
             label="Usually feeding"
-            min="1"
-            max="50"
-            inputmode="numeric"
+            unit="people"
+            event="adjust_feeding"
+            max={50}
+            help="How many people a planned meal is for, unless you change it."
           />
-          <p class="text-sm text-base-content/60 -mt-1 mb-4">
-            How many people a planned meal is for, unless you change it.
-          </p>
 
-          <input
-            type="hidden"
-            id="household-time-zone"
-            name={@form[:time_zone].name}
-            value={@form[:time_zone].value}
-            phx-hook=".BrowserTimeZone"
-          />
-          <script :type={Phoenix.LiveView.ColocatedHook} name=".BrowserTimeZone">
-            export default {
-              mounted() {
-                const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
-                if (zone && !this.el.value) {
-                  this.el.value = zone
-                  this.el.dispatchEvent(new Event("input", {bubbles: true}))
+          <div>
+            <input
+              type="hidden"
+              id="household-time-zone"
+              name={@form[:time_zone].name}
+              value={@form[:time_zone].value}
+              phx-hook=".BrowserTimeZone"
+            />
+            <script :type={Phoenix.LiveView.ColocatedHook} name=".BrowserTimeZone">
+              export default {
+                mounted() {
+                  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+                  if (zone && !this.el.value) {
+                    this.el.value = zone
+                    this.el.dispatchEvent(new Event("input", {bubbles: true}))
+                  }
                 }
               }
-            }
-          </script>
-          <p id="time-zone-note" class="text-sm text-base-content/60">
-            Days and weeks follow
-            <span class="font-medium text-base-content">
-              {@form[:time_zone].value || "your device's"}
-            </span>
-            time.
-          </p>
-          <p
-            :for={msg <- Enum.map(@form[:time_zone].errors, &translate_error/1)}
-            class="text-sm text-error"
-          >
-            Time zone {msg}
-          </p>
+            </script>
+            <p id="time-zone-note" class="text-sm text-base-content/70">
+              Days and weeks follow
+              <span class="font-medium text-base-content">
+                {@form[:time_zone].value || "your device's"}
+              </span>
+              time.
+            </p>
+            <p
+              :for={msg <- Enum.map(@form[:time_zone].errors, &translate_error/1)}
+              class="text-sm text-error"
+            >
+              Time zone {msg}
+            </p>
+          </div>
 
-          <.input
-            type="textarea"
-            id="invites"
-            name="invites"
-            value={@invites}
-            label="Invite people (optional)"
-            placeholder="partner@example.com, teen@example.com"
-            errors={@invite_errors}
-            rows="3"
-          />
-          <p class="text-sm text-base-content/60 -mt-1">
-            Separate addresses with commas or new lines. You can also invite people later.
-          </p>
+          <div class="space-y-1">
+            <.input
+              type="textarea"
+              id="invites"
+              name="invites"
+              value={@invites}
+              label="Invite people (optional)"
+              placeholder="partner@example.com, teen@example.com"
+              errors={@invite_errors}
+              rows="3"
+            />
+            <p class="text-sm text-base-content/70">
+              Separate addresses with commas or new lines. You can also invite people later.
+            </p>
+          </div>
 
-          <.button variant="primary" phx-disable-with="Creating..." class="w-full mt-4">
+          <.button variant="primary" phx-disable-with="Creating…" class="w-full">
             Create household
           </.button>
         </.form>
 
-        <p id="default-slots-note" class="text-sm text-base-content/60">
-          {slot_names()} meal slots are added for you; the owner can change them later.
-        </p>
+        <div id="what-next" class="space-y-1 text-sm text-base-content/70">
+          <p>
+            Next, add a few recipes, group them into meals and plan your week. The shopping list fills itself in from the plan.
+          </p>
+          <p id="default-slots-note">
+            {slot_names()} meal slots are added for you; the owner can change them later.
+          </p>
+        </div>
       </div>
     </Layouts.app>
     """
@@ -169,7 +166,7 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
   end
 
   defp mount_without_household(socket, invitations) do
-    form = %Household{usually_feeding: 4} |> Households.change_household() |> to_form()
+    form = new_household() |> Households.change_household() |> to_form()
 
     {:ok,
      assign(socket,
@@ -190,12 +187,25 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
   @impl true
   def handle_event("validate", %{"household" => params} = all_params, socket) do
     form =
-      %Household{}
+      new_household()
       |> Households.change_household(params)
       |> Map.put(:action, :validate)
       |> to_form()
 
     {:noreply, assign(socket, form: form, invites: Map.get(all_params, "invites", ""))}
+  end
+
+  def handle_event("adjust_feeding", %{"delta" => delta}, socket) do
+    form = socket.assigns.form
+    feeding = step_field(form[:usually_feeding], delta, 1, 50)
+
+    form =
+      new_household()
+      |> Households.change_household(Map.put(form.params, "usually_feeding", feeding))
+      |> Map.put(:action, form.source.action)
+      |> to_form()
+
+    {:noreply, assign(socket, form: form)}
   end
 
   def handle_event("save", %{"household" => params} = all_params, socket) do
@@ -286,6 +296,8 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
       invalid -> {:error, invalid}
     end
   end
+
+  defp new_household, do: %Household{usually_feeding: 4}
 
   defp blank_to_fallback(value) when value in [nil, ""], do: @fallback_time_zone
   defp blank_to_fallback(value), do: value

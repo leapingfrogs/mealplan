@@ -21,6 +21,7 @@ defmodule MealplanWeb.UI do
 
   import MealplanWeb.CoreComponents
 
+  alias Phoenix.HTML.FormField
   alias Phoenix.LiveView.JS
 
   @doc """
@@ -117,7 +118,8 @@ defmodule MealplanWeb.UI do
   end
 
   @doc """
-  A bordered list of `list_row/1`s. Rows draw their own dividers.
+  A bordered list of `list_row/1`s. Rows draw their own dividers and round
+  their own corners, so the list doesn't clip a `row_menu/1` opening below it.
 
       <.row_list id="recipes">
         <.list_row :for={r <- @recipes} id={"recipe-\#{r.id}"} navigate={~p"/recipes/\#{r}"}>
@@ -136,7 +138,7 @@ defmodule MealplanWeb.UI do
     <ul
       id={@id}
       class={[
-        "divide-y divide-base-300 overflow-hidden rounded-box border border-base-300 bg-base-100",
+        "divide-y divide-base-300 rounded-box border border-base-300 bg-base-100",
         @class
       ]}
       {@rest}
@@ -174,20 +176,20 @@ defmodule MealplanWeb.UI do
       id={@id}
       data-id={@sortable_id}
       draggable={@sortable_id && "true"}
-      class={["flex min-w-0 items-center", @class]}
+      class={["group/row flex min-w-0 items-center", @class]}
     >
       <%= cond do %>
         <% @navigate -> %>
-          <.link navigate={@navigate} class={row_main_class()} title={@title}>
+          <.link navigate={@navigate} class={row_main_class(@actions)} title={@title}>
             <.row_body {assigns} />
             <.icon name="hero-chevron-right" class="size-4 shrink-0 text-base-content/40" />
           </.link>
         <% @clickable? -> %>
-          <button type="button" class={row_main_class()} title={@title} {@rest}>
+          <button type="button" class={row_main_class(@actions)} title={@title} {@rest}>
             <.row_body {assigns} />
           </button>
         <% true -> %>
-          <div class={row_main_class()} title={@title}>
+          <div class={row_main_class(@actions)} title={@title}>
             <.row_body {assigns} />
           </div>
       <% end %>
@@ -198,9 +200,13 @@ defmodule MealplanWeb.UI do
     """
   end
 
-  defp row_main_class,
-    do:
-      "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-base-200/60"
+  defp row_main_class(actions) do
+    [
+      "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-base-200/60",
+      "group-first/row:rounded-tl-box group-last/row:rounded-bl-box",
+      actions == [] && "group-first/row:rounded-tr-box group-last/row:rounded-br-box"
+    ]
+  end
 
   defp row_body(assigns) do
     ~H"""
@@ -227,7 +233,7 @@ defmodule MealplanWeb.UI do
   """
   attr :for, :any, required: true
   attr :id, :string, required: true
-  attr :field, Phoenix.HTML.FormField, required: true
+  attr :field, FormField, required: true
   attr :label, :string, required: true
   attr :placeholder, :string, default: nil
   attr :button, :string, default: "Add"
@@ -271,7 +277,12 @@ defmodule MealplanWeb.UI do
     default: nil,
     doc: "the destructive button's id (default: id-confirm)"
 
-  attr :on_confirm, :any, required: true, doc: "event or JS for the destructive button"
+  attr :on_confirm, :any, default: nil, doc: "event or JS for the destructive button"
+
+  attr :form, :string,
+    default: nil,
+    doc: "instead of on_confirm, the id of a form in :extra the button submits"
+
   attr :on_cancel, :any, required: true
   slot :inner_block, doc: "what will happen"
   slot :item, doc: "each thing affected"
@@ -296,7 +307,8 @@ defmodule MealplanWeb.UI do
           {gettext("Cancel")}
         </button>
         <button
-          type="button"
+          type={if(@form, do: "submit", else: "button")}
+          form={@form}
           id={@confirm_id || "#{@id}-confirm"}
           class="btn btn-error"
           phx-click={@on_confirm}
@@ -307,6 +319,43 @@ defmodule MealplanWeb.UI do
     </section>
     """
   end
+
+  @doc """
+  A row's actions behind a ⋮ button, for rows with more than one action
+  (a meal slot, a member). Items close the menu when they run JS
+  (`close_menu/2`); a click outside closes it too.
+
+      <.row_menu id={"slot-\#{slot.id}-menu"} label={"Actions for \#{slot.name}"}>
+        <:item>
+          <button type="button" phx-click={close_menu("edit_slot", "slot-\#{slot.id}-menu")}
+            phx-value-id={slot.id}>Rename</button>
+        </:item>
+      </.row_menu>
+  """
+  attr :id, :string, required: true
+  attr :label, :string, required: true, doc: "the button's name, naming the row"
+  slot :item, required: true
+
+  def row_menu(assigns) do
+    ~H"""
+    <details
+      id={@id}
+      class="dropdown dropdown-end"
+      phx-click-away={JS.remove_attribute("open", to: "##{@id}")}
+    >
+      <summary class="btn btn-ghost btn-square list-none" aria-label={@label}>
+        <.icon name="hero-ellipsis-vertical" class="size-5" />
+      </summary>
+      <ul class="menu dropdown-content z-20 mt-1 w-52 rounded-box border border-base-300 bg-base-100 p-1 shadow-lg [&>li>*]:min-h-11 lg:[&>li>*]:min-h-0">
+        <li :for={item <- @item}>{render_slot(item)}</li>
+      </ul>
+    </details>
+    """
+  end
+
+  @doc "Pushes `event` (with the element's phx-value-* attributes) and closes the menu."
+  def close_menu(event, menu_id),
+    do: event |> JS.push() |> JS.remove_attribute("open", to: "#" <> menu_id)
 
   @doc """
   What goes here, and the action that adds it.
@@ -424,6 +473,77 @@ defmodule MealplanWeb.UI do
       </button>
     </div>
     """
+  end
+
+  @doc """
+  A whole-number form field drawn as a `stepper/1`, with its value in a
+  hidden input. The buttons send `event`; the LiveView works out the new
+  value with `step_field/4` and puts it in the form's params.
+
+      <.stepper_field field={@form[:usually_feeding]} label="Usually feeding"
+        unit="people" event="adjust_feeding" max={50} />
+  """
+  attr :field, FormField, required: true
+  attr :label, :string, required: true
+  attr :unit, :string, required: true, doc: "what is counted, for the buttons' names"
+  attr :event, :string, required: true
+  attr :min, :integer, default: 1
+  attr :max, :integer, default: 100
+  attr :help, :string, default: nil
+
+  def stepper_field(assigns) do
+    assigns = assign(assigns, :value, field_integer(assigns.field, assigns.min))
+
+    ~H"""
+    <div class="space-y-1">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <span id={"#{@field.id}-label"} class="font-medium">{@label}</span>
+        <.stepper
+          id={"#{@field.id}-stepper"}
+          label={@unit}
+          value={@value}
+          event={@event}
+          min={@min}
+          max={@max}
+        />
+        <input type="hidden" id={@field.id} name={@field.name} value={@value} />
+      </div>
+      <p :if={@help} class="text-sm text-base-content/70">{@help}</p>
+      <p :for={msg <- Enum.map(@field.errors, &translate_error/1)} class="text-sm text-error">
+        {msg}
+      </p>
+    </div>
+    """
+  end
+
+  @doc """
+  The value a `stepper_field/1` moves to: its current value plus `delta` (the
+  button's "-1" or "1"), kept within `min` and `max`.
+  """
+  def step_field(%FormField{} = field, delta, min, max) do
+    value = field_integer(field, min)
+
+    case Integer.parse(delta) do
+      {step, ""} -> (value + step) |> max(min) |> min(max)
+      _ -> value
+    end
+  end
+
+  # The field holds a number from the data or a string from params.
+  defp field_integer(field, default) do
+    case field.value do
+      n when is_integer(n) ->
+        n
+
+      text when is_binary(text) ->
+        case Integer.parse(text) do
+          {n, _rest} -> n
+          :error -> default
+        end
+
+      _ ->
+        default
+    end
   end
 
   @doc """

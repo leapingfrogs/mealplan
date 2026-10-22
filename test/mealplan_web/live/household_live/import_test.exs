@@ -53,9 +53,9 @@ defmodule MealplanWeb.HouseholdLive.ImportTest do
     assert has_element?(view, "#item-meal-0", "Salad (left out)")
     view |> form("#import-choices", choices: %{"recipe-1" => "add"}) |> render_change()
 
-    html = view |> form("#import-choices") |> render_submit()
+    view |> form("#import-choices") |> render_submit()
 
-    assert html =~ "Imported."
+    assert has_element?(view, "#import-summary h2", "Imported")
     assert has_element?(view, "#import-summary", "Recipes: 1 added, 1 replaced")
     assert has_element?(view, "#import-summary", "Meals: 1 added")
     assert Repo.reload!(ours).servings == 6

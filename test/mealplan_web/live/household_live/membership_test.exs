@@ -67,24 +67,30 @@ defmodule MealplanWeb.HouseholdLive.MembershipTest do
     refute has_element?(view, "#household-form")
     assert has_element?(view, "#leave-household")
     assert has_element?(member_view, "#household-form")
-    assert has_element?(member_view, "#member-#{member.id} .badge", "owner")
+    assert has_element?(member_view, "#member-#{member.id}", "Owner · you")
   end
 
   describe "deleting the household" do
     test "refuses a mismatched name", %{owner_conn: owner_conn, household: household} do
       {:ok, view, _html} = live(owner_conn, ~p"/household")
+      view |> element("#start-delete-household") |> render_click()
+      assert has_element?(view, "#delete-household-panel")
 
       html = view |> form("#delete-form", %{confirmation: "Hom"}) |> render_submit()
 
       assert html =~ "doesn&#39;t match. Nothing was deleted."
       assert Repo.get(Household, household.id)
+
+      view |> element("#delete-household-panel button", "Cancel") |> render_click()
+      refute has_element?(view, "#delete-household-panel")
+      assert has_element?(view, "#start-delete-household")
     end
 
     test "deletes it and sends every member to /welcome",
          %{owner_conn: owner_conn, member_conn: member_conn, household: household} do
       {:ok, member_plan, _html} = live(member_conn, ~p"/plan")
       {:ok, view, _html} = live(owner_conn, ~p"/household")
-
+      view |> element("#start-delete-household") |> render_click()
       view |> form("#delete-form", %{confirmation: "Home"}) |> render_submit()
 
       assert assert_redirect(view, ~p"/welcome")["info"] == "Home was deleted."

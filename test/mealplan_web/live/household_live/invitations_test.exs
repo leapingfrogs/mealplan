@@ -153,7 +153,7 @@ defmodule MealplanWeb.HouseholdLive.InvitationsTest do
       {:ok, view, _html} = live(conn, ~p"/welcome")
 
       view
-      |> form("#household-form", household: %{name: "With guests", usually_feeding: 3})
+      |> form("#household-form", household: %{name: "With guests"})
       |> render_submit(%{"invites" => "a@example.com, B@example.com\nb@example.com"})
 
       flash = assert_redirect(view, "/plan")
@@ -167,7 +167,7 @@ defmodule MealplanWeb.HouseholdLive.InvitationsTest do
 
       html =
         view
-        |> form("#household-form", household: %{name: "Typo", usually_feeding: 3})
+        |> form("#household-form", household: %{name: "Typo"})
         |> render_submit(%{"invites" => "good@example.com, bad-address"})
 
       assert html =~ "not valid email addresses: bad-address"
