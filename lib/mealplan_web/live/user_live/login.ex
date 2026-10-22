@@ -10,86 +10,88 @@ defmodule MealplanWeb.UserLive.Login do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-form space-y-4">
-        <div class="text-center">
-          <.header>
-            <p>Log in</p>
-            <:subtitle>
-              <%= if @current_scope do %>
-                You need to reauthenticate to perform sensitive actions on your account.
-              <% else %>
-                Mealplan is invite-only. Ask a family member for an invitation.
-              <% end %>
-            </:subtitle>
-          </.header>
-        </div>
+      <.auth_card title={if(@current_scope, do: "Log in again", else: "Log in")}>
+        <:intro :if={!@current_scope}>Plan the week's meals and shop for them together.</:intro>
 
-        <div :if={local_mail_adapter?()} class="alert alert-info">
-          <.icon name="hero-information-circle" class="size-6 shrink-0" />
-          <div>
-            <p>You are running the local mail adapter.</p>
-            <p>
-              To see sent emails, visit <.link href="/dev/mailbox" class="underline">the mailbox page</.link>.
-            </p>
-          </div>
+        <p class="text-sm text-base-content/70">
+          <%= cond do %>
+            <% @current_scope -> %>
+              You need to reauthenticate to change your email or password.
+            <% @password? -> %>
+              Mealplan is invite-only. Use the email address your invitation was sent to.
+            <% true -> %>
+              Mealplan is invite-only. Use the email address your invitation was sent to, and we'll email you a link.
+          <% end %>
+        </p>
+
+        <div
+          :if={local_mail_adapter?()}
+          id="local-mail-note"
+          class="rounded-box bg-info/10 p-3 text-sm"
+        >
+          You are running the local mail adapter. To see sent emails, visit <.link
+            href="/dev/mailbox"
+            class="underline"
+          >the mailbox page</.link>.
         </div>
 
         <.form
-          :let={f}
           for={@form}
-          id="login_form_magic"
+          id={if(@password?, do: "login_form_password", else: "login_form_magic")}
           action={~p"/users/log-in"}
-          phx-submit="submit_magic"
+          phx-change="change"
+          phx-submit={if(@password?, do: "submit_password", else: "submit_magic")}
+          phx-trigger-action={@password? and @trigger_submit}
+          class="space-y-4"
         >
           <.input
             readonly={!!@current_scope}
-            field={f[:email]}
+            field={@form[:email]}
             type="email"
             label="Email"
             autocomplete="username"
             spellcheck="false"
+            placeholder="you@example.com"
             required
-            phx-mounted={JS.focus()}
+            phx-mounted={!@password? && JS.focus()}
           />
-          <.button variant="primary" class="w-full">
-            Log in with email <span aria-hidden="true">→</span>
-          </.button>
+          <%= if @password? do %>
+            <.input
+              field={@form[:password]}
+              type="password"
+              label="Password"
+              autocomplete="current-password"
+              spellcheck="false"
+              phx-mounted={JS.focus()}
+            />
+            <.input
+              field={@form[:remember_me]}
+              type="checkbox"
+              label="Stay logged in on this device"
+            />
+            <.button variant="primary" class="w-full" phx-disable-with="Logging in…">
+              Log in
+            </.button>
+          <% else %>
+            <.button variant="primary" class="w-full" phx-disable-with="Sending…">
+              Email me a login link
+            </.button>
+          <% end %>
         </.form>
 
-        <div class="divider">or</div>
-
-        <.form
-          :let={f}
-          for={@form}
-          id="login_form_password"
-          action={~p"/users/log-in"}
-          phx-submit="submit_password"
-          phx-trigger-action={@trigger_submit}
+        <button
+          type="button"
+          id="toggle-password"
+          class="btn btn-ghost w-full"
+          phx-click="toggle_password"
         >
-          <.input
-            readonly={!!@current_scope}
-            field={f[:email]}
-            type="email"
-            label="Email"
-            autocomplete="username"
-            spellcheck="false"
-            required
-          />
-          <.input
-            field={@form[:password]}
-            type="password"
-            label="Password"
-            autocomplete="current-password"
-            spellcheck="false"
-          />
-          <.button variant="primary" class="w-full" name={@form[:remember_me].name} value="true">
-            Log in and stay logged in <span aria-hidden="true">→</span>
-          </.button>
-          <.button class="w-full mt-2">
-            Log in only this time
-          </.button>
-        </.form>
-      </div>
+          {if(@password?, do: "Email me a link instead", else: "Use a password instead")}
+        </button>
+
+        <:footer :if={!@current_scope}>
+          No invitation? Ask someone in your household to invite you from their Household page.
+        </:footer>
+      </.auth_card>
     </Layouts.app>
     """
   end
@@ -100,17 +102,28 @@ defmodule MealplanWeb.UserLive.Login do
       Phoenix.Flash.get(socket.assigns.flash, :email) ||
         get_in(socket.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
 
-    form = to_form(%{"email" => email}, as: "user")
+    form = to_form(%{"email" => email, "remember_me" => "true"}, as: "user")
 
     {:ok,
      assign(socket,
        form: form,
+       password?: false,
        trigger_submit: false,
        client_ip: if(connected?(socket), do: TrustedProxy.client_ip_from_socket(socket))
      )}
   end
 
+  # Keeps the email (and the remember-me box) when switching between the
+  # link and the password; the password itself never goes back to the page.
   @impl true
+  def handle_event("change", %{"user" => params}, socket) do
+    params = socket.assigns.form.params |> Map.merge(params) |> Map.delete("password")
+    {:noreply, assign(socket, form: to_form(params, as: "user"))}
+  end
+
+  def handle_event("toggle_password", _params, socket),
+    do: {:noreply, update(socket, :password?, &(!&1))}
+
   def handle_event("submit_password", _params, socket) do
     {:noreply, assign(socket, :trigger_submit, true)}
   end

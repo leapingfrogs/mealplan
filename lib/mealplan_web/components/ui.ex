@@ -358,6 +358,44 @@ defmodule MealplanWeb.UI do
     do: event |> JS.push() |> JS.remove_attribute("open", to: "#" <> menu_id)
 
   @doc """
+  The card the logged-out pages share (log in, the login link): a line
+  about Mealplan above it, the card with its title, and a note below.
+
+      <.auth_card title="Log in">
+        <:intro>Plan the week's meals and shop for them together.</:intro>
+        ...
+        <:footer>No invitation? ...</:footer>
+      </.auth_card>
+  """
+  attr :title, :string, required: true
+  slot :intro
+  slot :inner_block, required: true
+  slot :footer
+
+  def auth_card(assigns) do
+    ~H"""
+    <div class="mx-auto max-w-form space-y-6 sm:pt-8">
+      <p
+        :if={@intro != []}
+        class="text-balance text-center font-display text-2xl font-bold leading-tight"
+      >
+        {render_slot(@intro)}
+      </p>
+      <section
+        aria-labelledby="auth-title"
+        class="space-y-4 rounded-2xl border border-base-300 bg-base-100 p-5 sm:p-6"
+      >
+        <h1 id="auth-title" class="font-display text-2xl font-semibold">{@title}</h1>
+        {render_slot(@inner_block)}
+      </section>
+      <p :if={@footer != []} class="text-balance text-center text-sm text-base-content/70">
+        {render_slot(@footer)}
+      </p>
+    </div>
+    """
+  end
+
+  @doc """
   What goes here, and the action that adds it.
 
       <.empty_state id="no-recipes">
