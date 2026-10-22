@@ -247,10 +247,18 @@ h1, h2, h3 {
   }
 }
 
-/* The same for the responsive small sizes used from 1024 px. */
+/* The same for the responsive small sizes used from 1024 px and 1280 px
+   (the week grid's buttons). */
 @media (min-width: 64rem) {
   .lg\:btn-sm,
   .lg\:btn-xs {
+    --fontsize: var(--text-xs);
+  }
+}
+
+@media (min-width: 80rem) {
+  .xl\:btn-sm,
+  .xl\:btn-xs {
     --fontsize: var(--text-xs);
   }
 }

@@ -54,7 +54,8 @@ from `.tool-versions`, the single source shared with CI and the Dockerfile.
 The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
 [iteration-2.md](docs/design/iteration-2.md) for import and export,
 [iteration-3.md](docs/design/iteration-3.md) for meal slot tags,
-[iteration-4.md](docs/design/iteration-4.md) for shopping lists);
+[iteration-4.md](docs/design/iteration-4.md) for shopping lists,
+[iteration-5.md](docs/design/iteration-5.md) for the layout and components);
 [USER_STORIES.md](USER_STORIES.md) is the source of the behaviour.
 
 | Context | Owns |
@@ -100,10 +101,12 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
   self-hosted in `priv/static/fonts`: the CSP allows no font hosts. Pages pass
   `section` to `<Layouts.app>` (plan, recipes, meals, shopping, household or
   account) so the tab bar and sidebar mark where you are. Build pages from
-  `MealplanWeb.UI` (page_header, section_card, row_list and list_row, add_form,
-  confirm_panel, empty_state, chip_group and chip, stepper, collapsible,
-  sheet) rather than drawing headers, rows or panels by hand; extend a
-  component when a page needs something it lacks. Sheets and confirmation
+  `MealplanWeb.UI` (page_header, section_card, row_list and list_row,
+  row_menu, add_form, confirm_panel, empty_state, chip_group and chip,
+  stepper and stepper_field, collapsible, sheet, auth_card) rather than
+  drawing headers, rows or panels by hand; extend a component when a page
+  needs something it lacks. A row with more than one action puts them in a
+  `row_menu`; a whole-number field is a `stepper_field`. Sheets and confirmation
   panels follow the week plan's patterns; avoid DaisyUI `alert` for panels
   with controls (it lays them out side by side).
 
