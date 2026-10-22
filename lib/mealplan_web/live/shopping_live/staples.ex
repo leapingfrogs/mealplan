@@ -11,58 +11,42 @@ defmodule MealplanWeb.ShoppingLive.Staples do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="shopping">
-      <.link navigate={~p"/shopping"} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> Shopping
-      </.link>
-
-      <.header>
+      <.page_header back={~p"/shopping"} back_label="Shopping">
         Staples
-        <:subtitle>
+        <:meta>
           Things you always have, like salt or olive oil. They're left off the shopping list.
-        </:subtitle>
-      </.header>
+        </:meta>
+      </.page_header>
 
-      <.form
+      <.add_form
         for={@form}
         id="staple-form"
+        field={@form[:name]}
+        label="Add a staple"
+        placeholder="e.g. Salt"
         phx-change="validate"
         phx-submit="add"
-        class="flex items-start gap-2"
-      >
-        <div class="flex-1">
-          <.input
-            field={@form[:name]}
-            placeholder="e.g. Salt"
-            aria-label="Staple"
-            autocomplete="off"
-          />
-        </div>
-        <.button variant="primary" phx-disable-with="Adding...">
-          <.icon name="hero-plus" class="size-4" /> Add
-        </.button>
-      </.form>
+      />
 
-      <ul id="staple-list" class="divide-y divide-base-300 rounded-box border border-base-300">
-        <li
-          :for={staple <- @staples}
-          id={"staple-#{staple.id}"}
-          class="flex items-center justify-between gap-3 px-4 py-2"
-        >
-          <span class="min-w-0 truncate">{staple.name}</span>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm btn-square shrink-0"
-            phx-click="remove"
-            phx-value-id={staple.id}
-            aria-label={"Remove #{staple.name}"}
-          >
-            <.icon name="hero-x-mark" class="size-4" />
-          </button>
-        </li>
-        <li :if={@staples == []} class="px-4 py-8 text-center text-base-content/60">
-          No staples yet.
-        </li>
-      </ul>
+      <.row_list :if={@staples != []} id="staple-list">
+        <.list_row :for={staple <- @staples} id={"staple-#{staple.id}"}>
+          {staple.name}
+          <:actions>
+            <button
+              type="button"
+              class="btn btn-ghost btn-square"
+              phx-click="remove"
+              phx-value-id={staple.id}
+              aria-label={"Remove #{staple.name}"}
+            >
+              <.icon name="hero-x-mark" class="size-4" />
+            </button>
+          </:actions>
+        </.list_row>
+      </.row_list>
+      <.empty_state :if={@staples == []} id="no-staples">
+        No staples yet. Add the things you never need to buy.
+      </.empty_state>
     </Layouts.app>
     """
   end

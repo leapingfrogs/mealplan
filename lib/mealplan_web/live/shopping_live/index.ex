@@ -8,91 +8,77 @@ defmodule MealplanWeb.ShoppingLive.Index do
 
   alias Mealplan.Planning
   alias Mealplan.Shopping
+  alias Mealplan.Shopping.Item
   alias Mealplan.Shopping.Quantity
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} section="shopping">
-      <.header>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="shopping" wide>
+      <.page_header>
         Shopping
-        <:subtitle>
+        <:meta>{counts(@view)}</:meta>
+        <:actions>
           <button
             type="button"
             id="change-range"
-            class="link link-hover"
+            class="btn btn-outline border-base-300"
             phx-click="toggle_range"
             aria-expanded={to_string(@range_form != nil)}
+            aria-label={"Change the days, now #{range_label(@view.list, @today)}"}
           >
-            {range_label(@view.list, @today)}
+            <.icon name="hero-calendar-days" class="size-4" /> {range_label(@view.list, @today)}
           </button>
-        </:subtitle>
-        <:actions>
-          <details id="shopping-menu" class="dropdown dropdown-end">
-            <summary class="btn btn-ghost btn-sm btn-square" aria-label="More">
-              <.icon name="hero-ellipsis-vertical" class="size-5" />
-            </summary>
-            <ul class="menu dropdown-content z-10 mt-1 w-52 rounded-box border border-base-300 bg-base-100 p-1 shadow">
-              <li>
-                <button
-                  type="button"
-                  id="copy-list"
-                  phx-hook=".CopyText"
-                  data-text={copy_text(@view)}
-                >
-                  <.icon name="hero-clipboard-document" class="size-4" />
-                  <span data-label>Copy as text</span>
-                </button>
-              </li>
-              <li>
-                <.link navigate={~p"/shopping/staples"} id="manage-staples">
-                  <.icon name="hero-archive-box" class="size-4" /> Staples
-                </.link>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  id="start-new"
-                  phx-click={
-                    JS.push("start_new") |> JS.remove_attribute("open", to: "#shopping-menu")
-                  }
-                >
-                  <.icon name="hero-arrow-path" class="size-4" /> Start a new list
-                </button>
-              </li>
-            </ul>
-          </details>
-          <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyText">
-            export default {
-              mounted() {
-                this.el.addEventListener("click", async () => {
-                  const label = this.el.querySelector("[data-label]")
-                  try {
-                    await navigator.clipboard.writeText(this.el.dataset.text)
-                    label.textContent = "Copied"
-                  } catch (_error) {
-                    label.textContent = "Couldn't copy"
-                  }
-                  setTimeout(() => { label.textContent = "Copy as text" }, 1500)
-                })
-              }
-            }
-          </script>
+          <.link navigate={~p"/shopping/staples"} id="manage-staples" class="btn btn-ghost">
+            <.icon name="hero-bookmark" class="size-4" />
+            <span class="max-sm:sr-only">Staples</span>
+          </.link>
         </:actions>
-      </.header>
+        <:menu>
+          <button type="button" id="copy-list" phx-hook=".CopyText" data-text={copy_text(@view)}>
+            <.icon name="hero-clipboard-document" class="size-4" />
+            <span data-label>Copy as text</span>
+          </button>
+        </:menu>
+        <:menu>
+          <button
+            type="button"
+            id="start-new"
+            phx-click={JS.push("start_new") |> JS.remove_attribute("open", to: "#page-header-menu")}
+          >
+            <.icon name="hero-arrow-path" class="size-4" /> Start a new list
+          </button>
+        </:menu>
+      </.page_header>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyText">
+        export default {
+          mounted() {
+            this.el.addEventListener("click", async () => {
+              const label = this.el.querySelector("[data-label]")
+              try {
+                await navigator.clipboard.writeText(this.el.dataset.text)
+                label.textContent = "Copied"
+              } catch (_error) {
+                label.textContent = "Couldn't copy"
+              }
+              setTimeout(() => { label.textContent = "Copy as text" }, 1500)
+            })
+          }
+        }
+      </script>
 
       <.form
         :if={@range_form}
         for={@range_form}
         id="range-form"
         phx-submit="save_range"
-        class="space-y-3 rounded-box border border-base-300 p-3"
+        class="max-w-form space-y-3 rounded-box border border-base-300 bg-base-100 p-4"
       >
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="btn btn-sm" phx-click="range_preset" phx-value-preset="this">
+          <button type="button" class="btn" phx-click="range_preset" phx-value-preset="this">
             This week
           </button>
-          <button type="button" class="btn btn-sm" phx-click="range_preset" phx-value-preset="next">
+          <button type="button" class="btn" phx-click="range_preset" phx-value-preset="next">
             Next week
           </button>
         </div>
@@ -101,135 +87,125 @@ defmodule MealplanWeb.ShoppingLive.Index do
           <.input field={@range_form[:ends_on]} type="date" label="To" />
         </div>
         <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-sm btn-ghost" phx-click="toggle_range">Cancel</button>
-          <button type="submit" id="save-range" class="btn btn-primary btn-sm">Show</button>
+          <button type="button" class="btn btn-ghost" phx-click="toggle_range">Cancel</button>
+          <button type="submit" id="save-range" class="btn btn-primary">Show</button>
         </div>
       </.form>
 
-      <div
+      <.confirm_panel
         :if={@confirm_new}
         id="start-new-panel"
-        role="alert"
-        class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
+        title="Start a new list?"
+        confirm="Start a new list"
+        confirm_id="confirm-start-new"
+        on_confirm="confirm_new"
+        on_cancel="cancel_new"
       >
-        <p class="text-sm">
-          Start a new list from today? Ticks and items already bought are cleared; items you added
-          and haven't bought stay.
-        </p>
-        <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_new">Cancel</button>
-          <button
-            type="button"
-            id="confirm-start-new"
-            class="btn btn-sm btn-warning"
-            phx-click="confirm_new"
-          >
-            Start a new list
-          </button>
-        </div>
-      </div>
+        It starts from today. Ticks and items already bought are cleared; items you added
+        and haven't bought stay.
+      </.confirm_panel>
 
-      <section id="to-buy" class="space-y-2">
-        <ul class="divide-y divide-base-300 rounded-box border border-base-300">
-          <li :for={entry <- @view.to_buy} id={line_id(entry.line.key)}>
-            <.line_row
-              line={entry.line}
-              more={entry.more}
-              ticked={false}
-              open={MapSet.member?(@open, entry.line.key)}
-            />
-          </li>
-          <li :for={item <- unticked(@view.items)} id={"item-#{item.id}"}>
-            <.item_row item={item} />
-          </li>
-          <li
-            :if={@view.to_buy == [] and unticked(@view.items) == []}
-            id="nothing-to-buy"
-            class="px-4 py-8 text-center text-base-content/60"
+      <.add_form
+        for={@item_form}
+        id="item-form"
+        field={@item_form[:text]}
+        label="Add an item"
+        placeholder="Add an item, e.g. Kitchen roll"
+        phx-change="edit_item"
+        phx-submit="add_item"
+      />
+
+      <%!-- The list, with added items, ticked and staples beside it from 1024 px. --%>
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <section id="to-buy" aria-label="To buy">
+          <ul
+            :if={@view.to_buy != []}
+            class="divide-y divide-base-300 overflow-hidden rounded-box border border-base-300 bg-base-100 min-[85rem]:columns-2 min-[85rem]:gap-0 min-[85rem]:[column-rule:1px_solid_var(--color-base-300)]"
           >
+            <li :for={entry <- @view.to_buy} id={line_id(entry.line.key)} class="break-inside-avoid">
+              <.line_row
+                line={entry.line}
+                more={entry.more}
+                ticked={false}
+                open={MapSet.member?(@open, entry.line.key)}
+              />
+            </li>
+          </ul>
+          <.empty_state :if={@view.to_buy == [] and unticked(@view.items) == []} id="nothing-to-buy">
             <%= if @view.ticked == [] do %>
-              Nothing planned needs buying for these days. <.link
-                navigate={~p"/plan"}
-                class="link"
-              >Plan some meals</.link>, or add an item.
+              Nothing planned needs buying for these days.
             <% else %>
               All done.
             <% end %>
-          </li>
-        </ul>
+            <:action :if={@view.ticked == []}>
+              <.button navigate={~p"/plan"}>Plan some meals</.button>
+            </:action>
+          </.empty_state>
+        </section>
 
-        <.form for={@item_form} id="item-form" phx-submit="add_item" class="flex items-start gap-2">
-          <div class="flex-1">
-            <.input
-              field={@item_form[:text]}
-              placeholder="Add an item, e.g. Kitchen roll"
-              aria-label="Add an item"
-              autocomplete="off"
-            />
-          </div>
-          <.button aria-label="Add item"><.icon name="hero-plus" class="size-4" /></.button>
-        </.form>
-      </section>
+        <aside class="space-y-4 lg:sticky lg:top-6">
+          <section :if={unticked(@view.items) != []} id="added" class="space-y-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
+              Added by you
+            </h2>
+            <ul class="divide-y divide-base-300 overflow-hidden rounded-box border border-base-300 bg-base-100">
+              <li :for={item <- unticked(@view.items)} id={"item-#{item.id}"}>
+                <.item_row item={item} />
+              </li>
+            </ul>
+          </section>
 
-      <section
-        :if={@view.ticked != [] or ticked(@view.items) != []}
-        id="ticked"
-        class="overflow-hidden rounded-box border border-base-300"
-      >
-        <.group_toggle
-          name="ticked"
-          title="Ticked"
-          count={length(@view.ticked) + length(ticked(@view.items))}
-          open={ticked_open?(@view, @collapsed)}
-        />
-        <ul class={[
-          "divide-y divide-base-300 border-t border-base-300",
-          !ticked_open?(@view, @collapsed) && "hidden"
-        ]}>
-          <li :for={entry <- @view.ticked} id={line_id(entry.line.key)}>
-            <.line_row line={entry.line} more={nil} ticked={true} open={false} />
-          </li>
-          <li :for={item <- ticked(@view.items)} id={"item-#{item.id}"}>
-            <.item_row item={item} />
-          </li>
-        </ul>
-      </section>
-
-      <section
-        :if={@view.staples != []}
-        id="staples"
-        class="overflow-hidden rounded-box border border-base-300"
-      >
-        <.group_toggle
-          name="staples"
-          title="Staples, not listed"
-          count={length(@view.staples)}
-          open={not MapSet.member?(@collapsed, "staples")}
-        />
-        <ul class={[
-          "divide-y divide-base-300 border-t border-base-300",
-          MapSet.member?(@collapsed, "staples") && "hidden"
-        ]}>
-          <li
-            :for={line <- @view.staples}
-            id={"staple-" <> line_id(line.key)}
-            class="flex items-center justify-between gap-3 px-4 py-2"
+          <.collapsible
+            :if={@view.ticked != [] or ticked(@view.items) != []}
+            id="ticked"
+            title="Ticked"
+            count={length(@view.ticked) + length(ticked(@view.items))}
+            open={ticked_open?(@view, @collapsed)}
+            on_toggle="toggle_group"
+            value="ticked"
           >
-            <span class="min-w-0">
-              <span class="block break-words">{line.name}</span>
-              <span class="text-xs text-base-content/60">{line.amount}</span>
-            </span>
-            <button
-              type="button"
-              class="btn btn-ghost btn-xs shrink-0"
-              phx-click="need_staple"
-              phx-value-name={line.name}
-            >
-              <.icon name="hero-plus" class="size-3.5" /> Need some
-            </button>
-          </li>
-        </ul>
-      </section>
+            <ul class="divide-y divide-base-300">
+              <li :for={entry <- @view.ticked} id={line_id(entry.line.key)}>
+                <.line_row line={entry.line} more={nil} ticked={true} open={false} />
+              </li>
+              <li :for={item <- ticked(@view.items)} id={"item-#{item.id}"}>
+                <.item_row item={item} />
+              </li>
+            </ul>
+          </.collapsible>
+
+          <.collapsible
+            :if={@view.staples != []}
+            id="staples"
+            title="Staples, not listed"
+            count={length(@view.staples)}
+            open={not MapSet.member?(@collapsed, "staples")}
+            on_toggle="toggle_group"
+            value="staples"
+          >
+            <ul class="divide-y divide-base-300">
+              <li
+                :for={line <- @view.staples}
+                id={"staple-" <> line_id(line.key)}
+                class="flex items-center justify-between gap-3 px-4 py-2"
+              >
+                <span class="min-w-0">
+                  <span class="block break-words">{line.name}</span>
+                  <span class="text-sm text-base-content/70 tabular-nums">{line.amount}</span>
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm shrink-0"
+                  phx-click="need_staple"
+                  phx-value-name={line.name}
+                >
+                  <.icon name="hero-plus" class="size-4" /> Need some
+                </button>
+              </li>
+            </ul>
+          </.collapsible>
+        </aside>
+      </div>
     </Layouts.app>
     """
   end
@@ -241,10 +217,10 @@ defmodule MealplanWeb.ShoppingLive.Index do
 
   defp line_row(assigns) do
     ~H"""
-    <div class="flex items-center gap-1 pr-2">
+    <div class="flex items-center">
       <button
         type="button"
-        class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-base-200/60"
+        class="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-base-200/60"
         phx-click={if @ticked, do: "untick", else: "tick"}
         phx-value-key={@line.key}
         aria-pressed={to_string(@ticked)}
@@ -255,20 +231,26 @@ defmodule MealplanWeb.ShoppingLive.Index do
         ]}>
           <.icon :if={@ticked} name="hero-check" class="size-4" />
         </span>
-        <span class="min-w-0 break-words">
+        <span class="min-w-0 flex-1 break-words">
           <span class={["block", @ticked && "text-base-content/50 line-through"]}>
             {@line.name}
-            <span :if={@line.optional} class="badge badge-ghost badge-xs align-middle">optional</span>
+            <span :if={@line.optional} class="badge badge-ghost badge-sm align-middle">optional</span>
           </span>
-          <span class="text-sm text-base-content/60">
-            {@line.amount}<span :if={@more} class="text-warning"> · {Quantity.to_string(@more)} more since ticked</span>
+          <span :if={@more} class="block text-sm text-warning">
+            {Quantity.to_string(@more)} more since ticked
           </span>
+        </span>
+        <span class={[
+          "max-w-[45%] shrink-0 text-right tabular-nums",
+          if(@ticked, do: "text-base-content/50", else: "text-base-content/80")
+        ]}>
+          {@line.amount}
         </span>
       </button>
       <button
         :if={not @ticked}
         type="button"
-        class="btn btn-ghost btn-sm btn-square shrink-0"
+        class="btn btn-ghost btn-square mr-1 shrink-0"
         phx-click="toggle_line"
         phx-value-key={@line.key}
         aria-expanded={to_string(@open)}
@@ -286,11 +268,11 @@ defmodule MealplanWeb.ShoppingLive.Index do
       </ul>
       <button
         type="button"
-        class="btn btn-ghost btn-xs"
+        class="btn btn-ghost btn-sm"
         phx-click="make_staple"
         phx-value-name={@line.name}
       >
-        <.icon name="hero-archive-box-arrow-down" class="size-3.5" /> Always have this
+        <.icon name="hero-bookmark" class="size-4" /> Always have this
       </button>
     </div>
     """
@@ -300,10 +282,10 @@ defmodule MealplanWeb.ShoppingLive.Index do
 
   defp item_row(assigns) do
     ~H"""
-    <div class="flex items-center gap-1 pr-2">
+    <div class="flex items-center">
       <button
         type="button"
-        class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-base-200/60"
+        class="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-base-200/60"
         phx-click="tick_item"
         phx-value-id={@item.id}
         phx-value-ticked={to_string(is_nil(@item.ticked_at))}
@@ -324,7 +306,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
       </button>
       <button
         type="button"
-        class="btn btn-ghost btn-sm btn-square shrink-0"
+        class="btn btn-ghost btn-square mr-1 shrink-0"
         phx-click="remove_item"
         phx-value-id={@item.id}
         aria-label={"Remove #{@item.text}"}
@@ -332,26 +314,6 @@ defmodule MealplanWeb.ShoppingLive.Index do
         <.icon name="hero-x-mark" class="size-4" />
       </button>
     </div>
-    """
-  end
-
-  attr :name, :string, required: true
-  attr :title, :string, required: true
-  attr :count, :integer, required: true
-  attr :open, :boolean, required: true
-
-  defp group_toggle(assigns) do
-    ~H"""
-    <button
-      type="button"
-      class="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm font-medium transition-colors hover:bg-base-200"
-      phx-click="toggle_group"
-      phx-value-group={@name}
-      aria-expanded={to_string(@open)}
-    >
-      <span>{@title} <span class="font-normal text-base-content/50">({@count})</span></span>
-      <.icon name="hero-chevron-down" class={["size-4 transition-transform", @open && "rotate-180"]} />
-    </button>
     """
   end
 
@@ -400,6 +362,12 @@ defmodule MealplanWeb.ShoppingLive.Index do
 
     {:noreply, assign(socket, collapsed: collapsed)}
   end
+
+  # Keeps the server's copy of the field in step, so clearing it after Add
+  # reaches the browser: LiveView leaves a focused input alone unless its
+  # value changes.
+  def handle_event("edit_item", %{"item" => params}, socket),
+    do: {:noreply, assign(socket, item_form: to_form(Shopping.change_item(%Item{}, params)))}
 
   def handle_event("add_item", %{"item" => params}, socket) do
     case Shopping.add_item(socket.assigns.current_scope, params) do
@@ -509,6 +477,13 @@ defmodule MealplanWeb.ShoppingLive.Index do
   end
 
   defp unticked(items), do: Enum.filter(items, &is_nil(&1.ticked_at))
+
+  defp counts(view) do
+    to_buy = length(view.to_buy) + length(unticked(view.items))
+    ticked = length(view.ticked) + length(ticked(view.items))
+    "#{to_buy} to buy · #{ticked} ticked"
+  end
+
   defp ticked(items), do: Enum.reject(items, &is_nil(&1.ticked_at))
 
   @doc "The DOM id for an ingredient line (keys can hold any characters)."
