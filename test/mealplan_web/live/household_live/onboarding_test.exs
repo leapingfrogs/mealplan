@@ -19,6 +19,9 @@ defmodule MealplanWeb.HouseholdLive.OnboardingTest do
 
       assert has_element?(view, "#household-form")
       assert has_element?(view, "#default-slots-note", "Breakfast, Lunch, Dinner and Snack")
+      # The invite field keeps its full-width textarea styling.
+      assert has_element?(view, "textarea#invites.textarea.w-full")
+      assert has_element?(view, "#household-form button.btn.btn-primary", "Create household")
     end
 
     test "creates the household and goes to the week plan", %{conn: conn, user: user} do

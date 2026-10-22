@@ -97,17 +97,21 @@ defmodule MealplanWeb.CoreComponents do
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :class, :any, default: nil, doc: "extra classes, added to the variant's"
+  attr :variant, :string, values: ~w(primary danger neutral)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "primary" => "btn-primary",
+      "danger" => "btn-error",
+      "neutral" => nil,
+      nil => "btn-primary btn-soft"
+    }
 
+    # A page's classes add to the variant's (spacing, width), never replace them.
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assign(assigns, :class, ["btn", Map.fetch!(variants, assigns[:variant]), assigns[:class]])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""

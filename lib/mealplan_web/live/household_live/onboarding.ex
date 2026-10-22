@@ -129,8 +129,7 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
             label="Invite people (optional)"
             placeholder="partner@example.com, teen@example.com"
             errors={@invite_errors}
-            rows="2"
-            class="mt-2"
+            rows="3"
           />
           <p class="text-sm text-base-content/60 -mt-1">
             Separate addresses with commas or new lines. You can also invite people later.
