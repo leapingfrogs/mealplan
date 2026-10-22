@@ -41,7 +41,7 @@ defmodule MealplanWeb.PlanLive.LeftoversTest do
     # Step the servings down (or up) to what's wanted.
     current =
       view
-      |> element("#add-servings span.join-item")
+      |> element("#add-servings output")
       |> render()
       |> LazyHTML.from_fragment()
       |> LazyHTML.text()

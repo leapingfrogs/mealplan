@@ -197,13 +197,23 @@ defmodule MealplanWeb.PlanLive.Week do
         </li>
       </ol>
 
-      <.sheet :if={@sheet} id="plan-sheet" title={sheet_title(@sheet, @week)}>
+      <.sheet
+        :if={@sheet}
+        id="plan-sheet"
+        title={sheet_title(@sheet, @week)}
+        on_close="close_sheet"
+      >
         <%= case @sheet do %>
           <% %{mode: :add} -> %>
             <div class="space-y-4">
               <div class="flex items-center justify-between gap-3">
                 <span class="text-sm font-medium">Servings</span>
-                <.stepper id="add-servings" value={@servings} event="adjust_servings" />
+                <.stepper
+                  id="add-servings"
+                  label="servings"
+                  value={@servings}
+                  event="adjust_servings"
+                />
               </div>
               <div role="tablist" class="tabs tabs-box tabs-sm">
                 <button
@@ -313,7 +323,12 @@ defmodule MealplanWeb.PlanLive.Week do
     <div class="space-y-5">
       <div class="flex items-center justify-between gap-3">
         <span class="text-sm font-medium">Servings</span>
-        <.stepper id="edit-servings" value={@planned_meal.servings} event="set_servings" />
+        <.stepper
+          id="edit-servings"
+          label="servings"
+          value={@planned_meal.servings}
+          event="set_servings"
+        />
       </div>
 
       <section :if={@planned_meal.meal.meal_recipes != []} id="sheet-recipes" class="space-y-2">
@@ -424,84 +439,6 @@ defmodule MealplanWeb.PlanLive.Week do
         data-confirm={remove_confirmation(@planned_meal)}
       >
         <.icon name="hero-trash" class="size-4" /> Remove from plan
-      </button>
-    </div>
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :title, :string, required: true
-  slot :inner_block, required: true
-
-  # A bottom sheet on phones, a centred dialog on wider screens.
-  defp sheet(assigns) do
-    ~H"""
-    <div
-      id={@id}
-      class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
-      phx-window-keydown="close_sheet"
-      phx-key="Escape"
-    >
-      <div class="absolute inset-0 bg-black/40" phx-click="close_sheet" aria-hidden="true"></div>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={"#{@id}-title"}
-        class="relative max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-base-100 p-4 pb-6 shadow-xl sm:max-w-md sm:rounded-2xl"
-        phx-mounted={
-          JS.transition(
-            {"ease-out duration-200", "translate-y-6 opacity-0", "translate-y-0 opacity-100"}
-          )
-        }
-      >
-        <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-base-300 sm:hidden" aria-hidden="true">
-        </div>
-        <div class="mb-4 flex items-start justify-between gap-2">
-          <h2 id={"#{@id}-title"} class="text-lg font-semibold leading-7">{@title}</h2>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm btn-square"
-            phx-click="close_sheet"
-            aria-label="Close"
-          >
-            <.icon name="hero-x-mark" class="size-5" />
-          </button>
-        </div>
-        {render_slot(@inner_block)}
-      </div>
-    </div>
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :value, :integer, required: true
-  attr :event, :string, required: true
-
-  defp stepper(assigns) do
-    ~H"""
-    <div id={@id} class="join">
-      <button
-        type="button"
-        class="btn join-item btn-sm btn-square"
-        phx-click={@event}
-        phx-value-delta="-1"
-        disabled={@value <= 1}
-        aria-label="Fewer servings"
-      >
-        <.icon name="hero-minus" class="size-4" />
-      </button>
-      <span class="join-item flex w-12 items-center justify-center border border-base-300 text-sm font-semibold tabular-nums">
-        {@value}
-      </span>
-      <button
-        type="button"
-        class="btn join-item btn-sm btn-square"
-        phx-click={@event}
-        phx-value-delta="1"
-        disabled={@value >= 100}
-        aria-label="More servings"
-      >
-        <.icon name="hero-plus" class="size-4" />
       </button>
     </div>
     """
