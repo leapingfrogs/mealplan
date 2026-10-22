@@ -10,7 +10,7 @@ defmodule MealplanWeb.RecipeLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="recipes">
       <.link navigate={~p"/recipes"} class="text-sm text-base-content/60 hover:text-base-content">
         <.icon name="hero-arrow-left" class="size-4" /> Recipes
       </.link>

@@ -7,7 +7,7 @@ defmodule MealplanWeb.MealLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="meals">
       <.header>
         Meals
         <:subtitle>What you plan: one or more recipes, or none at all, like "Eat out".</:subtitle>

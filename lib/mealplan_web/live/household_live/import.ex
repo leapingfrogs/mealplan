@@ -22,7 +22,7 @@ defmodule MealplanWeb.HouseholdLive.Import do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="household">
       <.link navigate={~p"/household"} class="text-sm text-base-content/60 hover:text-base-content">
         <.icon name="hero-arrow-left" class="size-4" /> Household
       </.link>
