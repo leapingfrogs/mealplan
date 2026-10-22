@@ -1,0 +1,15 @@
+{
+  "name": "Mealplan",
+  "short_name": "Mealplan",
+  "description": "Plan your family's meals, recipes and shopping.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fafaf8",
+  "theme_color": "#c2410c",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/images/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
