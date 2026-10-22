@@ -82,8 +82,9 @@ defmodule MealplanWeb do
       # Translation
       use Gettext, backend: MealplanWeb.Gettext
 
-      # Core UI components
+      # Core UI components and Mealplan's shared page components
       import MealplanWeb.CoreComponents
+      import MealplanWeb.UI
 
       # HTML escaping functionality
       import Phoenix.HTML
