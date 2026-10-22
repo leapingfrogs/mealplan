@@ -216,7 +216,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
             class="flex items-center justify-between gap-3 px-4 py-2"
           >
             <span class="min-w-0">
-              <span class="block truncate">{line.name}</span>
+              <span class="block break-words">{line.name}</span>
               <span class="text-xs text-base-content/60">{line.amount}</span>
             </span>
             <button
@@ -244,7 +244,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
     <div class="flex items-center gap-1 pr-2">
       <button
         type="button"
-        class="flex min-h-12 flex-1 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-base-200/60"
+        class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-base-200/60"
         phx-click={if @ticked, do: "untick", else: "tick"}
         phx-value-key={@line.key}
         aria-pressed={to_string(@ticked)}
@@ -255,7 +255,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
         ]}>
           <.icon :if={@ticked} name="hero-check" class="size-4" />
         </span>
-        <span class="min-w-0">
+        <span class="min-w-0 break-words">
           <span class={["block", @ticked && "text-base-content/50 line-through"]}>
             {@line.name}
             <span :if={@line.optional} class="badge badge-ghost badge-xs align-middle">optional</span>
@@ -303,7 +303,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
     <div class="flex items-center gap-1 pr-2">
       <button
         type="button"
-        class="flex min-h-12 flex-1 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-base-200/60"
+        class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-base-200/60"
         phx-click="tick_item"
         phx-value-id={@item.id}
         phx-value-ticked={to_string(is_nil(@item.ticked_at))}
@@ -318,7 +318,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
         ]}>
           <.icon :if={@item.ticked_at} name="hero-check" class="size-4" />
         </span>
-        <span class={["min-w-0 truncate", @item.ticked_at && "text-base-content/50 line-through"]}>
+        <span class={["min-w-0 break-words", @item.ticked_at && "text-base-content/50 line-through"]}>
           {@item.text}
         </span>
       </button>

@@ -73,10 +73,27 @@ defmodule Mealplan.Shopping.QuantityTest do
       assert shown([]) == "some"
     end
 
-    test "numbers show at most two decimal places, without trailing zeros" do
-      assert shown([row(100, "g")], "0.3333") == "33.33 g"
+    test "amounts round up to what you can buy, without trailing zeros" do
+      # Metric: 0.5 under 10, 5 under 100, 25 under 1000, then 50.
+      assert shown([row(100, "g")], "0.3333") == "35 g"
+      assert shown([row(200, "g")], "3.3333") == "675 g"
+      assert shown([row(500, "g")], "3.3333") == "1.7 kg"
+      assert shown([row("2.3", "g")]) == "2.5 g"
+      assert shown([row("0.12", "g")]) == "150 mg"
+      assert shown([row(300, "ml")], "1.6666") == "500 ml"
+      # Measuring units to the nearest half; things bought whole round up.
+      assert shown([row(2, "tbsp")], "1.6667") == "3.5 tbsp"
       assert shown([row("1.50", "tbsp")]) == "1.5 tbsp"
       assert shown([row(1, "tbsp")], 2) == "2 tbsp"
+      assert shown([row(2, "tins")], "2.6667") == "6 tins"
+      assert shown([row(4, "cloves")], "4.0833") == "17 cloves"
+      assert shown([row(1, "thumb")], "3.3333") == "4 thumb"
+    end
+
+    test "more since ticked compares the rounded amounts" do
+      before = Quantity.new(row(660, "g"))
+      assert Quantity.more(Quantity.new(row(670, "g")), before) == nil
+      assert Quantity.to_string(Quantity.more(Quantity.new(row(680, "g")), before)) == "25 g"
     end
 
     test "empty?/1" do

@@ -94,9 +94,11 @@ defmodule Mealplan.Shopping.Quantity do
   @doc """
   The quantity for the list: its parts joined with " + " (metric mass, metric
   volume, other units, a count, then texts), or "some" when there's no
-  amount at all. Metric amounts take the larger unit from 1000 up, counts
-  round up to a whole number, and everything else shows at most two
-  decimal places.
+  amount at all. Amounts round UP to what you can buy: metric amounts to a
+  step (0.5 under 10, 5 under 100, 25 under 1000, then 50, in g or ml) and
+  take the larger unit from 1000 up; measuring units (spoons, cups, ounces)
+  to the nearest half; everything else (tins, cloves, counts) to a whole
+  number.
 
       iex> alias Mealplan.Shopping.Quantity
       iex> a = Quantity.new(%{quantity: Decimal.new(750), unit: "g", canonical_unit: "g", dimension: :mass})
@@ -127,30 +129,51 @@ defmodule Mealplan.Shopping.Quantity do
   def more(%__MODULE__{} = current, %__MODULE__{} = before) do
     units =
       for {unit, %{amount: amount} = spellings} <- current.units,
-          extra = grew(amount, get_in(before.units, [unit, :amount]), 2),
+          extra = grew(amount, get_in(before.units, [unit, :amount]), &round_unit(unit, &1)),
           into: %{},
           do: {unit, %{spellings | amount: extra}}
 
     more = %__MODULE__{
-      mass: grew(current.mass, before.mass, 2),
-      volume: grew(current.volume, before.volume, 2),
+      mass: grew(current.mass, before.mass, &round_metric/1),
+      volume: grew(current.volume, before.volume, &round_metric/1),
       units: units,
-      count: grew(current.count, before.count, :count),
+      count: grew(current.count, before.count, &whole/1),
       texts: current.texts -- before.texts
     }
 
     if empty?(more), do: nil, else: more
   end
 
-  defp grew(nil, _before, _places), do: nil
+  defp grew(nil, _before, _round), do: nil
 
-  defp grew(now, before, places) do
-    extra = Decimal.sub(shown_number(now, places), shown_number(before || Decimal.new(0), places))
+  defp grew(now, before, round) do
+    extra = Decimal.sub(round.(now), round.(before || Decimal.new(0)))
     if Decimal.gt?(extra, 0), do: extra
   end
 
-  defp shown_number(amount, :count), do: Decimal.round(amount, 0, :ceiling)
-  defp shown_number(amount, places), do: Decimal.round(amount, places)
+  @measures ["tsp", "tbsp", "cup", "fl oz", "pint", "oz", "lb"]
+
+  # Metric amounts (g or ml) round up to a step that suits their size.
+  defp round_metric(amount) do
+    step =
+      cond do
+        Decimal.lt?(amount, 1) -> "0.05"
+        Decimal.lt?(amount, 10) -> "0.5"
+        Decimal.lt?(amount, 100) -> "5"
+        Decimal.lt?(amount, 1000) -> "25"
+        true -> "50"
+      end
+
+    ceil_to(amount, Decimal.new(step))
+  end
+
+  # Spoons, cups and ounces to the nearest half; tins, cloves and the rest whole.
+  defp round_unit(unit, amount) when unit in @measures, do: ceil_to(amount, Decimal.new("0.5"))
+  defp round_unit(_unit, amount), do: whole(amount)
+
+  defp whole(amount), do: Decimal.round(amount, 0, :ceiling)
+
+  defp ceil_to(amount, step), do: amount |> Decimal.div(step) |> whole() |> Decimal.mult(step)
 
   @doc "The quantity as a JSON-friendly map, for storing (amounts as strings)."
   def to_map(%__MODULE__{} = quantity) do
@@ -202,6 +225,8 @@ defmodule Mealplan.Shopping.Quantity do
   defp metric(nil, _base, _large, _small), do: nil
 
   defp metric(amount, base, large, small) do
+    amount = round_metric(amount)
+
     cond do
       Decimal.compare(amount, 1000) != :lt ->
         "#{number(Decimal.div(amount, 1000))} #{large}"
@@ -218,7 +243,7 @@ defmodule Mealplan.Shopping.Quantity do
     units
     |> Enum.sort_by(&elem(&1, 0))
     |> Enum.map(fn {unit, %{amount: amount} = spellings} ->
-      shown = number(amount)
+      shown = number(round_unit(unit, amount))
 
       written =
         if shown == "1",
@@ -230,7 +255,7 @@ defmodule Mealplan.Shopping.Quantity do
   end
 
   defp count(nil), do: nil
-  defp count(amount), do: amount |> Decimal.round(0, :ceiling) |> number()
+  defp count(amount), do: amount |> whole() |> number()
 
   defp number(amount) do
     amount

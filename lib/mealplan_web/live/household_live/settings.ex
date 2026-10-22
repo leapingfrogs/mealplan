@@ -467,7 +467,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
               aria-label="Household name"
             />
           </div>
-          <.button class="btn btn-error">Delete household</.button>
+          <.button variant="danger">Delete household</.button>
         </.form>
       </section>
     </Layouts.app>

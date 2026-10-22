@@ -93,7 +93,7 @@ defmodule MealplanWeb.PlanLive.Week do
           :for={day <- @week.days}
           id={"day-#{day}"}
           class={[
-            "rounded-box border bg-base-100 p-3 lg:p-2",
+            "min-w-0 rounded-box border bg-base-100 p-3 lg:p-2",
             if(day == @today, do: "border-primary ring-1 ring-primary/30", else: "border-base-300"),
             Date.before?(day, @today) && "opacity-75"
           ]}
@@ -117,32 +117,38 @@ defmodule MealplanWeb.PlanLive.Week do
                 {slot.name}<span :if={slot.archived_at} class="normal-case tracking-normal"> (removed)</span>
               </span>
               <div class="min-w-0 flex-1 lg:w-full">
-                <ul :if={cell_meals(@cells, day, slot) != []} class="mb-1 flex flex-wrap gap-1">
+                <ul :if={cell_meals(@cells, day, slot) != []} class="mb-1 flex flex-col gap-1">
                   <li
                     :for={planned_meal <- cell_meals(@cells, day, slot)}
                     id={"planned-#{planned_meal.id}"}
+                    class="min-w-0"
                   >
                     <button
                       type="button"
                       phx-click="edit"
                       phx-value-id={planned_meal.id}
-                      class="badge badge-lg h-auto min-h-8 max-w-full cursor-pointer gap-1 whitespace-normal border-base-300 bg-base-200 py-1 text-left transition-colors hover:border-primary/40 hover:bg-base-300"
+                      title={planned_meal.meal.name}
+                      class="flex w-full min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-box border border-base-300 bg-base-200 px-2.5 py-1.5 text-left transition-colors hover:border-primary/40 hover:bg-base-300"
                     >
-                      <span
-                        :if={planned_meal.leftovers != []}
-                        class="leftovers text-primary"
-                        title={leftovers_title(planned_meal)}
-                      >
-                        ↺
+                      <span class="line-clamp-3 w-full break-words leading-snug">
+                        {planned_meal.meal.name}
                       </span>
-                      <span class="min-w-0 break-words">{planned_meal.meal.name}</span>
-                      <span class="text-base-content/60 tabular-nums">×{planned_meal.servings}</span>
-                      <span
-                        :if={cooks(@cooks, planned_meal)}
-                        class="cooks badge badge-primary badge-soft badge-sm"
-                        title={"Cooked for #{cooks(@cooks, planned_meal)}, to leave leftovers"}
-                      >
-                        cooks {cooks(@cooks, planned_meal)}
+                      <span class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-base-content/60">
+                        <span
+                          :if={planned_meal.leftovers != []}
+                          class="leftovers text-primary"
+                          title={leftovers_title(planned_meal)}
+                        >
+                          ↺
+                        </span>
+                        <span class="tabular-nums">×{planned_meal.servings}</span>
+                        <span
+                          :if={cooks(@cooks, planned_meal)}
+                          class="cooks badge badge-primary badge-soft badge-sm"
+                          title={"Cooked for #{cooks(@cooks, planned_meal)}, to leave leftovers"}
+                        >
+                          cooks {cooks(@cooks, planned_meal)}
+                        </span>
                       </span>
                     </button>
                   </li>
@@ -394,7 +400,7 @@ defmodule MealplanWeb.PlanLive.Week do
           label="Slot"
           options={Enum.map(@slots, &{&1.name, &1.id})}
         />
-        <.button class="btn mb-2">Move</.button>
+        <.button variant="neutral" class="mb-2">Move</.button>
       </.form>
 
       <div
