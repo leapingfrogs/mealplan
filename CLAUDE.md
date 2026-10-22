@@ -93,7 +93,11 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
   only keys, never paths on disk. Keep it that way, and keep the property
   tests passing. `.cook` and `.menu` MIME types are set in `config/config.exs`;
   after changing them run `mix deps.compile mime --force`.
-- **UI.** Phone first; check new screens at 390 px. Sheets and confirmation
+- **UI.** Phone first; check new screens at 390 px. Colours, radii and sizes come from the
+  daisyUI themes in `assets/css/app.css` (the Mealplan UI kit); page widths are
+  `max-w-form`, `max-w-content` or `max-w-wide`; text is never below `text-xs`
+  (13 px). Fonts (Public Sans, Bricolage Grotesque for headings) are
+  self-hosted in `priv/static/fonts`: the CSP allows no font hosts. Sheets and confirmation
   panels follow the week plan's patterns; avoid DaisyUI `alert` for panels
   with controls (it lays them out side by side).
 

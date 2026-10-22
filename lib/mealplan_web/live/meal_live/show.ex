@@ -125,7 +125,7 @@ defmodule MealplanWeb.MealLive.Show do
       </section>
 
       <section class="space-y-3">
-        <h2 class="text-lg font-semibold">Recipes</h2>
+        <h2 class="text-xl font-semibold">Recipes</h2>
         <p
           :if={@meal.meal_recipes == []}
           id="no-recipes"
@@ -187,7 +187,7 @@ defmodule MealplanWeb.MealLive.Show do
       </section>
 
       <section :if={is_nil(@meal.archived_at)} class="space-y-3 pt-2">
-        <h2 class="text-lg font-semibold">Add a recipe</h2>
+        <h2 class="text-xl font-semibold">Add a recipe</h2>
         <.form for={@picker_form} id="recipe-picker" phx-change="find" phx-submit="find">
           <label class="input w-full">
             <.icon name="hero-magnifying-glass" class="size-4 opacity-60" />

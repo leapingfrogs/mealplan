@@ -121,7 +121,7 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
     <form id="import-choices" phx-change="choose" phx-submit="apply" class="space-y-6">
       <section :if={@import.recipes != []} class="space-y-2">
-        <h2 class="text-lg font-semibold">Recipes</h2>
+        <h2 class="text-xl font-semibold">Recipes</h2>
         <ul class="divide-y divide-base-300 rounded-box border border-base-300">
           <li
             :for={item <- @import.recipes}
@@ -151,7 +151,7 @@ defmodule MealplanWeb.HouseholdLive.Import do
       </section>
 
       <section :if={@import.meals != []} class="space-y-2">
-        <h2 class="text-lg font-semibold">Meals</h2>
+        <h2 class="text-xl font-semibold">Meals</h2>
         <div
           :if={@slots != [] and untagged(@import, @choices) != []}
           id="bulk-slots"

@@ -8,7 +8,7 @@ defmodule MealplanWeb.UserLive.Confirmation do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm">
+      <div class="mx-auto max-w-form">
         <div class="text-center">
           <.header>Welcome {@user.email}</.header>
         </div>
