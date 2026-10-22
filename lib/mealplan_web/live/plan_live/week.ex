@@ -18,61 +18,71 @@ defmodule MealplanWeb.PlanLive.Week do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="plan" wide>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 id="week-title" class="text-lg font-semibold leading-8">{week_title(@week, @today)}</h1>
-          <p class="text-sm text-base-content/60">{date_range(@week)}</p>
-        </div>
-        <nav class="flex items-center gap-1" aria-label="Weeks">
-          <button
-            :if={not Week.fully_planned?(@week) and @week.slots != []}
-            type="button"
-            id="copy-last-week"
-            class="btn btn-ghost btn-sm"
-            phx-click="copy_week"
-            phx-disable-with="Copying..."
-          >
-            <.icon name="hero-document-duplicate" class="size-4" /> Copy last week
-          </button>
-          <.link
-            patch={week_path(Date.add(@week.start, -7))}
-            id="previous-week"
-            class="btn btn-ghost btn-sm btn-square"
-            aria-label="Previous week"
-          >
-            <.icon name="hero-chevron-left" class="size-5" />
-          </.link>
-          <.link
-            :if={@week.start != Planning.week_start(@today)}
-            patch={week_path(Planning.week_start(@today))}
-            id="this-week"
-            class="btn btn-ghost btn-sm"
-          >
-            This week
-          </.link>
-          <.link
-            patch={week_path(Date.add(@week.start, 7))}
-            id="next-week"
-            class="btn btn-ghost btn-sm btn-square"
-            aria-label="Next week"
-          >
-            <.icon name="hero-chevron-right" class="size-5" />
-          </.link>
-        </nav>
-      </div>
+      <.page_header>
+        <span id="week-title">{week_title(@week, @today)}</span>
+        <:meta>{date_range(@week)}</:meta>
+        <:actions>
+          <%!-- A fixed toolbar: "Today" keeps its place when it isn't needed. --%>
+          <nav class="flex items-center gap-1" aria-label="Weeks">
+            <button
+              :if={not Week.fully_planned?(@week) and @week.slots != []}
+              type="button"
+              id="copy-last-week"
+              class="btn btn-ghost lg:btn-sm"
+              phx-click="copy_week"
+              phx-disable-with="Copying..."
+            >
+              <.icon name="hero-document-duplicate" class="size-4" /> Copy last week
+            </button>
+            <div class="join">
+              <.link
+                patch={week_path(Date.add(@week.start, -7))}
+                id="previous-week"
+                class="btn join-item btn-square lg:btn-sm"
+                aria-label="Previous week"
+              >
+                <.icon name="hero-chevron-left" class="size-5" />
+              </.link>
+              <.link
+                :if={@week.start != Planning.week_start(@today)}
+                patch={week_path(Planning.week_start(@today))}
+                id="this-week"
+                class="btn join-item lg:btn-sm"
+              >
+                Today
+              </.link>
+              <span
+                :if={@week.start == Planning.week_start(@today)}
+                class="btn join-item btn-disabled lg:btn-sm"
+                aria-hidden="true"
+              >
+                Today
+              </span>
+              <.link
+                patch={week_path(Date.add(@week.start, 7))}
+                id="next-week"
+                class="btn join-item btn-square lg:btn-sm"
+                aria-label="Next week"
+              >
+                <.icon name="hero-chevron-right" class="size-5" />
+              </.link>
+            </div>
+          </nav>
+        </:actions>
+      </.page_header>
 
-      <div id="week-progress" class="space-y-1">
+      <div id="week-progress" class="space-y-1.5">
         <div class="flex justify-between text-sm">
           <span>
             <span class="font-medium">{@week.planned} of {@week.cells}</span> slots planned
           </span>
-          <span :if={Week.fully_planned?(@week)} class="text-success font-medium">
+          <span :if={Week.fully_planned?(@week)} class="font-medium text-success">
             <.icon name="hero-check-circle" class="size-4" /> All planned
           </span>
         </div>
         <progress
           class={[
-            "progress w-full",
+            "progress h-1.5 w-full",
             if(Week.fully_planned?(@week), do: "progress-success", else: "progress-primary")
           ]}
           value={@week.planned}
@@ -81,121 +91,195 @@ defmodule MealplanWeb.PlanLive.Week do
         ></progress>
       </div>
 
-      <p :if={@week.slots == []} class="text-base-content/60">
+      <p :if={@week.slots == []} class="text-base-content/70">
         Your household has no meal slots. Add some on the <.link
           navigate={~p"/household"}
           class="link"
         >household page</.link>.
       </p>
 
-      <ol id="days" class="grid gap-3 lg:grid-cols-7 lg:gap-2">
+      <%!-- Phones and tablets: jump to a day. --%>
+      <nav
+        :if={@week.slots != []}
+        id="day-strip"
+        aria-label="Days"
+        class="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 lg:top-0 -mx-4 grid grid-cols-7 gap-1 border-b border-base-300 bg-base-100/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10 xl:hidden"
+      >
+        <a
+          :for={day <- @week.days}
+          href={"#day-#{day}"}
+          aria-current={day == @today && "date"}
+          aria-label={Calendar.strftime(day, "%A %-d %B")}
+          class={[
+            "flex min-h-12 flex-col items-center justify-center rounded-field text-sm",
+            cond do
+              day == @today -> "bg-primary font-semibold text-primary-content"
+              Date.before?(day, @today) -> "text-base-content/60"
+              true -> "font-medium"
+            end
+          ]}
+        >
+          <span>{Calendar.strftime(day, "%a") |> String.first()}</span>
+          <span class="tabular-nums">{day.day}</span>
+          <span class={[
+            "size-1.5 rounded-full",
+            cond do
+              day_meals(@cells, day) == 0 -> "bg-transparent"
+              day == @today -> "bg-primary-content"
+              true -> "bg-primary"
+            end
+          ]}></span>
+        </a>
+      </nav>
+
+      <%!-- Day cards on phones, two columns from 1024 px; from 1280 px seven columns whose slots line up as
+           bands (each day is a subgrid of the same rows, see app.css). --%>
+      <ol
+        id="days"
+        phx-hook=".ScrollToToday"
+        data-rows={length(band_slots(@week, @cells)) + 1}
+        class="grid gap-3 lg:grid-cols-2 lg:items-start xl:grid-cols-7 xl:items-stretch xl:gap-x-2 xl:gap-y-0"
+      >
         <li
           :for={day <- @week.days}
           id={"day-#{day}"}
+          data-today={day == @today && "true"}
           class={[
-            "min-w-0 rounded-box border bg-base-100 p-3 lg:p-2",
-            if(day == @today, do: "border-primary ring-1 ring-primary/30", else: "border-base-300"),
-            Date.before?(day, @today) && "opacity-75"
+            "min-w-0 scroll-mt-36 rounded-box border bg-base-100 p-3 xl:px-2 xl:pt-2 xl:pb-3",
+            if(day == @today, do: "border-primary ring-1 ring-primary/30", else: "border-base-300")
           ]}
         >
-          <h2 class="mb-2 flex items-baseline justify-between gap-2">
-            <span class="font-semibold">{Calendar.strftime(day, "%A")}</span>
-            <span class="whitespace-nowrap text-sm text-base-content/60">
-              <span :if={day == @today} class="badge badge-primary badge-sm mr-1 lg:hidden">Today</span>{Calendar.strftime(
-                day,
-                "%-d %b"
-              )}
-            </span>
-          </h2>
-          <ul class="space-y-2">
-            <li
-              :for={slot <- display_slots(@week, @cells, day)}
-              id={"cell-#{day}-#{slot.id}"}
-              class="group flex flex-col gap-1 sm:flex-row sm:items-start lg:flex-col"
-            >
-              <span class="w-24 shrink-0 pt-0.5 text-xs font-medium uppercase tracking-wide text-base-content/50 lg:w-auto">
-                {slot.name}<span :if={slot.archived_at} class="normal-case tracking-normal"> (removed)</span>
+          <h2 class="flex items-center justify-between gap-2 xl:mb-1">
+            <span class="flex items-baseline gap-2">
+              <span class={["font-semibold", Date.before?(day, @today) && "text-base-content/70"]}>
+                <span class="xl:hidden">{Calendar.strftime(day, "%A")}</span>
+                <span class="hidden xl:inline">{Calendar.strftime(day, "%a")}</span>
               </span>
-              <div class="min-w-0 flex-1 lg:w-full">
-                <ul :if={cell_meals(@cells, day, slot) != []} class="mb-1 flex flex-col gap-1">
-                  <li
-                    :for={planned_meal <- cell_meals(@cells, day, slot)}
-                    id={"planned-#{planned_meal.id}"}
-                    class="min-w-0"
-                  >
-                    <button
-                      type="button"
-                      phx-click="edit"
-                      phx-value-id={planned_meal.id}
-                      title={planned_meal.meal.name}
-                      class="flex w-full min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-box border border-base-300 bg-base-200 px-2.5 py-1.5 text-left transition-colors hover:border-primary/40 hover:bg-base-300"
-                    >
-                      <span class="line-clamp-3 w-full break-words leading-snug">
-                        {planned_meal.meal.name}
-                      </span>
-                      <span class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-base-content/60">
-                        <span
-                          :if={planned_meal.leftovers != []}
-                          class="leftovers text-primary"
-                          title={leftovers_title(planned_meal)}
-                        >
-                          ↺
-                        </span>
-                        <span class="tabular-nums">×{planned_meal.servings}</span>
-                        <span
-                          :if={cooks(@cooks, planned_meal)}
-                          class="cooks badge badge-primary badge-soft badge-sm"
-                          title={"Cooked for #{cooks(@cooks, planned_meal)}, to leave leftovers"}
-                        >
-                          cooks {cooks(@cooks, planned_meal)}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                </ul>
-                <%= cond do %>
-                  <% slot.archived_at -> %>
-                  <% MapSet.member?(@skips, {day, slot.id}) -> %>
-                    <div class="flex items-center gap-1 text-sm text-base-content/50">
-                      <span class="italic">Skipped</span>
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-xs"
-                        phx-click="unskip"
-                        phx-value-date={day}
-                        phx-value-slot={slot.id}
+              <span class="whitespace-nowrap text-sm text-base-content/70 tabular-nums">
+                <span class="xl:hidden">{Calendar.strftime(day, "%-d %b")}</span>
+                <span class="hidden xl:inline">{day.day}</span>
+              </span>
+              <span :if={day == @today} class="badge badge-primary badge-sm">Today</span>
+            </span>
+            <button
+              :if={collapsible_day?(day, @week, @today)}
+              type="button"
+              id={"toggle-day-#{day}"}
+              class="btn btn-ghost btn-sm xl:hidden"
+              phx-click="toggle_day"
+              phx-value-date={day}
+              aria-expanded={to_string(not collapsed?(day, @week, @today, @open_days))}
+              aria-controls={"slots-#{day}"}
+            >
+              {if collapsed?(day, @week, @today, @open_days), do: "Show", else: "Hide"}
+              <.icon
+                name="hero-chevron-down"
+                class={[
+                  "size-4 transition-transform",
+                  not collapsed?(day, @week, @today, @open_days) && "rotate-180"
+                ]}
+              />
+            </button>
+          </h2>
+          <p
+            :if={collapsed?(day, @week, @today, @open_days)}
+            id={"summary-#{day}"}
+            class="text-sm text-base-content/70 xl:hidden"
+          >
+            {day_summary(@cells, @skips, day)}
+          </p>
+          <ul
+            id={"slots-#{day}"}
+            class={[
+              "mt-2 space-y-3 xl:contents",
+              collapsed?(day, @week, @today, @open_days) && "hidden"
+            ]}
+          >
+            <%= for slot <- band_slots(@week, @cells) do %>
+              <%= if slot in display_slots(@week, @cells, day) do %>
+                <li
+                  id={"cell-#{day}-#{slot.id}"}
+                  class="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start xl:flex-col xl:border-t xl:border-base-300 xl:pt-2 xl:pb-1"
+                >
+                  <span class="w-24 shrink-0 pt-1 text-xs font-semibold uppercase tracking-wide text-base-content/60 xl:w-auto xl:pt-0">
+                    {slot.name}<span :if={slot.archived_at} class="normal-case tracking-normal"> (removed)</span>
+                  </span>
+                  <div class="min-w-0 flex-1 space-y-1.5 xl:w-full">
+                    <ul :if={cell_meals(@cells, day, slot) != []} class="flex flex-col gap-1.5">
+                      <li
+                        :for={planned_meal <- cell_meals(@cells, day, slot)}
+                        id={"planned-#{planned_meal.id}"}
+                        class="min-w-0"
                       >
-                        Undo
-                      </button>
-                    </div>
-                  <% true -> %>
-                    <div class="flex gap-1 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-xs text-base-content/60"
-                        phx-click="add"
-                        phx-value-date={day}
-                        phx-value-slot={slot.id}
-                      >
-                        <.icon name="hero-plus" class="size-3.5" /> Add
-                      </button>
-                      <button
-                        :if={cell_meals(@cells, day, slot) == []}
-                        type="button"
-                        class="btn btn-ghost btn-xs text-base-content/50"
-                        phx-click="skip"
-                        phx-value-date={day}
-                        phx-value-slot={slot.id}
-                      >
-                        Skip
-                      </button>
-                    </div>
-                <% end %>
-              </div>
-            </li>
+                        <.meal_chip
+                          planned_meal={planned_meal}
+                          cooks={cooks(@cooks, planned_meal)}
+                          leftovers_title={leftovers_title(planned_meal)}
+                        />
+                      </li>
+                    </ul>
+                    <%= cond do %>
+                      <% slot.archived_at -> %>
+                      <% MapSet.member?(@skips, {day, slot.id}) -> %>
+                        <div class="flex items-center gap-2 text-sm text-base-content/70">
+                          <span class="italic">Skipped</span>
+                          <button
+                            type="button"
+                            class="btn btn-ghost xl:btn-sm"
+                            phx-click="unskip"
+                            phx-value-date={day}
+                            phx-value-slot={slot.id}
+                          >
+                            Undo
+                          </button>
+                        </div>
+                      <% true -> %>
+                        <div class="flex gap-1.5 xl:flex-col">
+                          <button
+                            type="button"
+                            class={[
+                              "btn border-dashed border-base-300 bg-transparent font-normal text-base-content/70 shadow-none hover:border-primary/50 hover:text-primary xl:btn-sm xl:w-full",
+                              cell_meals(@cells, day, slot) == [] && "flex-1 sm:flex-none"
+                            ]}
+                            phx-click="add"
+                            phx-value-date={day}
+                            phx-value-slot={slot.id}
+                            aria-label={"Add to #{slot.name} on #{Calendar.strftime(day, "%A")}"}
+                          >
+                            <.icon name="hero-plus" class="size-4" /> Add
+                          </button>
+                          <button
+                            :if={cell_meals(@cells, day, slot) == []}
+                            type="button"
+                            class="btn btn-ghost font-normal text-base-content/70 xl:btn-sm xl:w-full"
+                            phx-click="skip"
+                            phx-value-date={day}
+                            phx-value-slot={slot.id}
+                          >
+                            Skip
+                          </button>
+                        </div>
+                    <% end %>
+                  </div>
+                </li>
+              <% else %>
+                <%!-- Keeps the bands lined up on desktop; nothing on phones. --%>
+                <li class="hidden xl:block xl:border-t xl:border-base-300" aria-hidden="true"></li>
+              <% end %>
+            <% end %>
           </ul>
         </li>
       </ol>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ScrollToToday">
+        // On phones and tablets the plan opens at today's card, below the sticky bars.
+        export default {
+          mounted() {
+            if (!window.matchMedia("(max-width: 1279px)").matches) return
+            const today = this.el.querySelector("[data-today]")
+            if (today && today.previousElementSibling) today.scrollIntoView({block: "start"})
+          }
+        }
+      </script>
 
       <.sheet
         :if={@sheet}
@@ -261,6 +345,43 @@ defmodule MealplanWeb.PlanLive.Week do
     """
   end
 
+  attr :planned_meal, :any, required: true
+  attr :cooks, :any, required: true, doc: "servings cooked when more than planned, or nil"
+  attr :leftovers_title, :string, default: nil
+
+  # A planned meal: its name on its own line (up to three lines), then the
+  # servings, a leftovers mark and what it cooks for.
+  defp meal_chip(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click="edit"
+      phx-value-id={@planned_meal.id}
+      title={@planned_meal.meal.name}
+      class="flex w-full min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-field border border-base-300 bg-base-200 px-2.5 py-1.5 text-left transition-colors hover:border-primary/40 hover:bg-base-300"
+    >
+      <span class="line-clamp-3 w-full break-words leading-snug">{@planned_meal.meal.name}</span>
+      <span class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-base-content/70">
+        <span
+          :if={@planned_meal.leftovers != []}
+          class="leftovers text-primary"
+          title={@leftovers_title}
+        >
+          ↺
+        </span>
+        <span class="tabular-nums">×{@planned_meal.servings}</span>
+        <span
+          :if={@cooks}
+          class="cooks badge badge-primary badge-soft badge-sm"
+          title={"Cooked for #{@cooks}, to leave leftovers"}
+        >
+          cooks {@cooks}
+        </span>
+      </span>
+    </button>
+    """
+  end
+
   attr :sources, :list, required: true
 
   # Earlier meals (within 14 days) whose recipes can be eaten as leftovers.
@@ -276,7 +397,7 @@ defmodule MealplanWeb.PlanLive.Week do
         class="rounded-box border border-base-300 p-3"
       >
         <div class="flex items-baseline justify-between gap-2">
-          <span class="min-w-0 truncate font-medium">{source.planned_meal.meal.name}</span>
+          <span class="min-w-0 break-words font-medium">{source.planned_meal.meal.name}</span>
           <span class="shrink-0 text-xs text-base-content/60">{slot_label(source.planned_meal)}</span>
         </div>
         <div class="mt-2 flex flex-wrap gap-1">
@@ -473,54 +594,62 @@ defmodule MealplanWeb.PlanLive.Week do
       </form>
 
       <div id="sheet-results" class="space-y-2">
-        <.pick_section
+        <.collapsible
           id="slot-meals"
-          name="slot"
+          value="slot"
+          on_toggle="toggle_section"
           title={"Meals for #{@slot_name}"}
           count={length(@results.slot_meals)}
           open={open?(@expanded, "slot", @query, @results.slot_meals)}
         >
-          <.meal_choice :for={meal <- @results.slot_meals} meal={meal} />
-          <li :if={@results.slot_meals == []} class="px-3 py-3 text-sm text-base-content/60">
-            <%= if @query == "" do %>
-              No meals tagged for {@slot_name} yet. Plan a recipe or a new meal here and it will be, or tag meals on their page.
-            <% else %>
-              No {@slot_name} meals match.
-            <% end %>
-          </li>
-        </.pick_section>
+          <ul class="divide-y divide-base-300">
+            <.meal_choice :for={meal <- @results.slot_meals} meal={meal} />
+            <li :if={@results.slot_meals == []} class="px-4 py-3 text-sm text-base-content/70">
+              <%= if @query == "" do %>
+                No meals tagged for {@slot_name} yet. Plan a recipe or a new meal here and it will be, or tag meals on their page.
+              <% else %>
+                No {@slot_name} meals match.
+              <% end %>
+            </li>
+          </ul>
+        </.collapsible>
 
-        <.pick_section
+        <.collapsible
           :if={@results.other_meals != []}
           id="other-meals"
-          name="other"
+          value="other"
+          on_toggle="toggle_section"
           title="Other meals"
           count={length(@results.other_meals)}
           open={open?(@expanded, "other", @query, @results.other_meals)}
         >
-          <.meal_choice :for={meal <- @results.other_meals} meal={meal} />
-        </.pick_section>
+          <ul class="divide-y divide-base-300">
+            <.meal_choice :for={meal <- @results.other_meals} meal={meal} />
+          </ul>
+        </.collapsible>
 
-        <.pick_section
+        <.collapsible
           :if={@recipes? and @results.recipes != []}
           id="recipe-choices"
-          name="recipes"
+          value="recipes"
+          on_toggle="toggle_section"
           title="Recipes"
           count={length(@results.recipes)}
           open={open?(@expanded, "recipes", @query, @results.recipes)}
         >
-          <li :for={recipe <- @results.recipes} id={"pick-recipe-#{recipe.id}"}>
-            <button
-              type="button"
-              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-base-200"
+          <ul class="divide-y divide-base-300">
+            <.list_row
+              :for={recipe <- @results.recipes}
+              id={"pick-recipe-#{recipe.id}"}
+              title={recipe.name}
               phx-click="pick_recipe"
               phx-value-id={recipe.id}
             >
-              <span class="min-w-0 truncate">{recipe.name}</span>
-              <span class="badge badge-ghost badge-sm shrink-0">recipe</span>
-            </button>
-          </li>
-        </.pick_section>
+              {recipe.name}
+              <:trailing><span class="badge badge-ghost badge-sm">recipe</span></:trailing>
+            </.list_row>
+          </ul>
+        </.collapsible>
 
         <button
           :if={new_meal_name(@query, @results)}
@@ -539,51 +668,19 @@ defmodule MealplanWeb.PlanLive.Week do
   defp open?(expanded, name, query, items),
     do: MapSet.member?(expanded, name) or (query != "" and items != [])
 
-  attr :id, :string, required: true
-  attr :name, :string, required: true
-  attr :title, :string, required: true
-  attr :count, :integer, required: true
-  attr :open, :boolean, required: true
-  slot :inner_block, required: true
-
-  defp pick_section(assigns) do
-    ~H"""
-    <section id={@id} class="overflow-hidden rounded-box border border-base-300">
-      <button
-        type="button"
-        class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-base-200"
-        phx-click="toggle_section"
-        phx-value-section={@name}
-        aria-expanded={to_string(@open)}
-      >
-        <span>{@title} <span class="font-normal text-base-content/50">({@count})</span></span>
-        <.icon
-          name="hero-chevron-down"
-          class={["size-4 transition-transform", @open && "rotate-180"]}
-        />
-      </button>
-      <ul class={["divide-y divide-base-300 border-t border-base-300", !@open && "hidden"]}>
-        {render_slot(@inner_block)}
-      </ul>
-    </section>
-    """
-  end
-
   attr :meal, :any, required: true
 
   defp meal_choice(assigns) do
     ~H"""
-    <li id={"pick-meal-#{@meal.id}"}>
-      <button
-        type="button"
-        class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-base-200"
-        phx-click="pick_meal"
-        phx-value-id={@meal.id}
-      >
-        <span class="min-w-0 truncate">{@meal.name}</span>
-        <span class="shrink-0 text-xs text-base-content/50">{recipe_count(@meal.recipe_count)}</span>
-      </button>
-    </li>
+    <.list_row
+      id={"pick-meal-#{@meal.id}"}
+      title={@meal.name}
+      phx-click="pick_meal"
+      phx-value-id={@meal.id}
+    >
+      {@meal.name}
+      <:trailing><span class="text-sm">{recipe_count(@meal.recipe_count)}</span></:trailing>
+    </.list_row>
     """
   end
 
@@ -592,6 +689,7 @@ defmodule MealplanWeb.PlanLive.Week do
     {:ok,
      assign(socket,
        page_title: "Plan",
+       open_days: MapSet.new(),
        sheet: nil,
        servings: 1,
        query: "",
@@ -698,7 +796,22 @@ defmodule MealplanWeb.PlanLive.Week do
 
   def handle_event("close_sheet", _params, socket), do: {:noreply, assign(socket, sheet: nil)}
 
-  def handle_event("toggle_section", %{"section" => section}, socket)
+  def handle_event("toggle_day", %{"date" => date}, socket) do
+    case Date.from_iso8601(date) do
+      {:ok, day} ->
+        open = socket.assigns.open_days
+
+        open =
+          if MapSet.member?(open, day), do: MapSet.delete(open, day), else: MapSet.put(open, day)
+
+        {:noreply, assign(socket, open_days: open)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_section", %{"group" => section}, socket)
       when section in ~w(slot other recipes) do
     expanded = socket.assigns.expanded
 
@@ -1131,6 +1244,42 @@ defmodule MealplanWeb.PlanLive.Week do
   defp display_slots(week, cells, day) do
     retired = Enum.filter(week.retired_slots, &Map.has_key?(cells, {day, &1.id}))
     Enum.sort_by(week.slots ++ retired, & &1.position)
+  end
+
+  # Every slot shown on any day this week, so desktop rows line up across days.
+  defp band_slots(week, cells) do
+    retired =
+      Enum.filter(week.retired_slots, fn slot ->
+        Enum.any?(week.days, &Map.has_key?(cells, {&1, slot.id}))
+      end)
+
+    Enum.sort_by(week.slots ++ retired, & &1.position)
+  end
+
+  defp day_meals(cells, day) do
+    Enum.sum(for {{^day, _slot_id}, meals} <- cells, do: length(meals))
+  end
+
+  # On phones, days already past in the current week fold to one line.
+  defp collapsible_day?(day, week, today),
+    do: Date.before?(day, today) and Planning.week_start(today) == week.start
+
+  defp collapsed?(day, week, today, open_days),
+    do: collapsible_day?(day, week, today) and not MapSet.member?(open_days, day)
+
+  defp day_summary(cells, skips, day) do
+    meals = day_meals(cells, day)
+    skipped = Enum.count(skips, &match?({^day, _slot_id}, &1))
+
+    [
+      meals > 0 && "#{meals} #{if meals == 1, do: "meal", else: "meals"} planned",
+      skipped > 0 && "#{skipped} skipped"
+    ]
+    |> Enum.filter(& &1)
+    |> case do
+      [] -> "Nothing planned"
+      parts -> Enum.join(parts, " · ")
+    end
   end
 
   defp find_slot(week, slot_id),

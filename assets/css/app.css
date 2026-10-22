@@ -199,3 +199,57 @@ h1, h2, h3 {
 :root {
   --tab-bar: calc(4.25rem + env(safe-area-inset-bottom, 0px));
 }
+
+/* Week plan from 1280 px: each day is a subgrid of the same rows (header,
+   then one per slot), so a slot lines up as a band across the week. #days
+   carries data-rows (inline styles are blocked by the CSP). */
+@media (min-width: 80rem) {
+  #days > li {
+    display: grid;
+    grid-template-rows: subgrid;
+  }
+  #days[data-rows="2"] > li {
+    grid-row: span 2;
+  }
+  #days[data-rows="3"] > li {
+    grid-row: span 3;
+  }
+  #days[data-rows="4"] > li {
+    grid-row: span 4;
+  }
+  #days[data-rows="5"] > li {
+    grid-row: span 5;
+  }
+  #days[data-rows="6"] > li {
+    grid-row: span 6;
+  }
+  #days[data-rows="7"] > li {
+    grid-row: span 7;
+  }
+  #days[data-rows="8"] > li {
+    grid-row: span 8;
+  }
+  #days[data-rows="9"] > li {
+    grid-row: span 9;
+  }
+  #days[data-rows="10"] > li {
+    grid-row: span 10;
+  }
+  #days[data-rows="11"] > li {
+    grid-row: span 11;
+  }
+  #days[data-rows="12"] > li {
+    grid-row: span 12;
+  }
+  #days[data-rows="13"] > li {
+    grid-row: span 13;
+  }
+}
+
+/* The same for the responsive small sizes used from 1024 px. */
+@media (min-width: 64rem) {
+  .lg\:btn-sm,
+  .lg\:btn-xs {
+    --fontsize: var(--text-xs);
+  }
+}
