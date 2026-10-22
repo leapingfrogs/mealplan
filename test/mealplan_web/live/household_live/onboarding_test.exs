@@ -30,11 +30,15 @@ defmodule MealplanWeb.HouseholdLive.OnboardingTest do
       render_change(view, "validate", %{"household" => %{"time_zone" => "Europe/London"}})
       assert has_element?(view, "#time-zone-note", "Europe/London")
 
+      view
+      |> element("#household_usually_feeding-stepper button[aria-label='Fewer people']")
+      |> render_click()
+
+      assert has_element?(view, "#household_usually_feeding-stepper output", "3")
+
       assert {:error, {:redirect, %{to: path}}} =
                view
-               |> form("#household-form",
-                 household: %{name: "The Davies household", usually_feeding: 3}
-               )
+               |> form("#household-form", household: %{name: "The Davies household"})
                |> render_submit(%{"household" => %{"time_zone" => "Europe/London"}})
 
       assert path == ~p"/plan"
@@ -51,7 +55,7 @@ defmodule MealplanWeb.HouseholdLive.OnboardingTest do
       {:ok, view, _html} = live(conn, ~p"/welcome")
 
       view
-      |> form("#household-form", household: %{name: "No zone", usually_feeding: 2})
+      |> form("#household-form", household: %{name: "No zone"})
       |> render_submit()
 
       assert Repo.get_by!(Household, owner_id: user.id).time_zone == "Etc/UTC"
@@ -62,15 +66,14 @@ defmodule MealplanWeb.HouseholdLive.OnboardingTest do
 
       html =
         view
-        |> form("#household-form", household: %{name: "", usually_feeding: 0})
+        |> form("#household-form", household: %{name: ""})
         |> render_change()
 
       assert html =~ "can&#39;t be blank"
-      assert html =~ "must be greater than 0"
 
       html =
         view
-        |> form("#household-form", household: %{name: "Zoned", usually_feeding: 2})
+        |> form("#household-form", household: %{name: "Zoned"})
         |> render_submit(%{"household" => %{"time_zone" => "Mars/Olympus"}})
 
       assert html =~ "Time zone is not a known time zone"

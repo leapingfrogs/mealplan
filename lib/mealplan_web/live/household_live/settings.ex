@@ -14,86 +14,233 @@ defmodule MealplanWeb.HouseholdLive.Settings do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="household">
-      <.header>
+      <.page_header>
         {@current_scope.household.name}
-        <:subtitle>
-          <%= if @owner? do %>
-            You're the owner.
-          <% else %>
-            Only the owner can change these details.
-          <% end %>
-        </:subtitle>
-      </.header>
+        <:meta>{summary(@owner?, @members, @pending_invitations)}</:meta>
+      </.page_header>
 
-      <.form
-        :if={@owner?}
-        for={@form}
-        id="household-form"
-        phx-change="validate"
-        phx-submit="save"
-        class="space-y-2"
-      >
-        <.input field={@form[:name]} label="Household name" autocomplete="off" />
-        <.input
-          field={@form[:usually_feeding]}
-          type="number"
-          label="Usually feeding"
-          min="1"
-          max="50"
-          inputmode="numeric"
-        />
-        <p class="text-sm text-base-content/60 -mt-1 mb-2">
-          How many people a newly planned meal is for.
-        </p>
-        <.input
-          field={@form[:time_zone]}
-          label="Time zone"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="Europe/London"
-        />
-        <button
-          type="button"
-          id="use-device-time-zone"
-          class="btn btn-sm btn-ghost -mt-1"
-          phx-hook=".DeviceTimeZone"
-          data-target="household_time_zone"
+      <div class="space-y-4">
+        <.section_card
+          id="details"
+          title="Details"
+          help="Usually feeding sets the servings for newly planned meals."
         >
-          Use this device's time zone
-        </button>
-        <script :type={Phoenix.LiveView.ColocatedHook} name=".DeviceTimeZone">
-          export default {
-            mounted() {
-              this.el.addEventListener("click", () => {
-                const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
-                const input = document.getElementById(this.el.dataset.target)
-                if (zone && input) {
-                  input.value = zone
-                  input.dispatchEvent(new Event("input", {bubbles: true}))
-                }
-              })
+          <.form
+            :if={@owner?}
+            for={@form}
+            id="household-form"
+            phx-change="validate"
+            phx-submit="save"
+            class="space-y-4"
+          >
+            <.input field={@form[:name]} label="Household name" autocomplete="off" />
+            <.stepper_field
+              field={@form[:usually_feeding]}
+              label="Usually feeding"
+              unit="people"
+              event="adjust_feeding"
+              max={50}
+            />
+            <div>
+              <.input
+                field={@form[:time_zone]}
+                label="Time zone"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Europe/London"
+              />
+              <button
+                type="button"
+                id="use-device-time-zone"
+                class="btn btn-ghost mt-1"
+                phx-hook=".DeviceTimeZone"
+                data-target="household_time_zone"
+              >
+                <.icon name="hero-globe-europe-africa" class="size-4" /> Use this device's time zone
+              </button>
+            </div>
+            <div class="flex justify-end">
+              <.button variant="primary" phx-disable-with="Saving…">Save details</.button>
+            </div>
+          </.form>
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".DeviceTimeZone">
+            export default {
+              mounted() {
+                this.el.addEventListener("click", () => {
+                  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+                  const input = document.getElementById(this.el.dataset.target)
+                  if (zone && input) {
+                    input.value = zone
+                    input.dispatchEvent(new Event("input", {bubbles: true}))
+                  }
+                })
+              }
             }
+          </script>
+
+          <dl :if={!@owner?} id="household-details" class="divide-y divide-base-300">
+            <div class="flex justify-between gap-3 py-3">
+              <dt class="text-base-content/70">Usually feeding</dt>
+              <dd id="usually-feeding" class="tabular-nums">
+                {@current_scope.household.usually_feeding}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-3 py-3">
+              <dt class="text-base-content/70">Time zone</dt>
+              <dd id="time-zone">{@current_scope.household.time_zone}</dd>
+            </div>
+          </dl>
+        </.section_card>
+
+        <.section_card
+          id="meal-slots-section"
+          title="Meal slots"
+          help={
+            if(@owner?,
+              do: "The times of day you plan meals for, in order. Drag or use ⋮ to reorder.",
+              else: "The times of day you plan meals for, in order."
+            )
           }
-        </script>
-        <div>
-          <.button variant="primary" phx-disable-with="Saving..." class="mt-4">Save</.button>
-        </div>
-      </.form>
+        >
+          <.row_list
+            id="meal-slots"
+            phx-hook="Sortable"
+            data-event="reorder_slots"
+            data-sortable={to_string(@owner? and is_nil(@editing_slot_id))}
+          >
+            <%= for {slot, index} <- Enum.with_index(@meal_slots) do %>
+              <li
+                :if={@editing_slot_id == slot.id}
+                id={"slot-#{slot.id}"}
+                data-id={slot.id}
+                class="px-4 py-3"
+              >
+                <.form
+                  for={@slot_form}
+                  id="rename-slot-form"
+                  phx-change="validate_slot"
+                  phx-submit="rename_slot"
+                  class="flex flex-wrap items-start gap-2"
+                >
+                  <input type="hidden" name="slot_id" value={slot.id} />
+                  <div class="min-w-40 flex-1">
+                    <.input
+                      field={@slot_form[:name]}
+                      aria-label="Meal slot name"
+                      autocomplete="off"
+                      phx-mounted={JS.focus()}
+                    />
+                  </div>
+                  <button type="button" class="btn btn-ghost" phx-click="cancel_rename">
+                    Cancel
+                  </button>
+                  <.button variant="primary" phx-disable-with="Saving…">Save</.button>
+                </.form>
+              </li>
+              <.list_row
+                :if={@editing_slot_id != slot.id}
+                id={"slot-#{slot.id}"}
+                sortable_id={if(@owner? and is_nil(@editing_slot_id), do: slot.id)}
+              >
+                {slot.name}
+                <:lead :if={@owner?}>
+                  <.icon
+                    name="hero-bars-2"
+                    class="hidden size-5 cursor-grab text-base-content/40 sm:block"
+                  />
+                </:lead>
+                <:actions :if={@owner?}>
+                  <.row_menu id={"slot-#{slot.id}-menu"} label={"Actions for #{slot.name}"}>
+                    <:item :if={index > 0}>
+                      <button
+                        type="button"
+                        phx-click={close_menu("move_slot", "slot-#{slot.id}-menu")}
+                        phx-value-id={slot.id}
+                        phx-value-direction="up"
+                      >
+                        <.icon name="hero-arrow-up" class="size-4" /> Move earlier
+                      </button>
+                    </:item>
+                    <:item :if={index < length(@meal_slots) - 1}>
+                      <button
+                        type="button"
+                        phx-click={close_menu("move_slot", "slot-#{slot.id}-menu")}
+                        phx-value-id={slot.id}
+                        phx-value-direction="down"
+                      >
+                        <.icon name="hero-arrow-down" class="size-4" /> Move later
+                      </button>
+                    </:item>
+                    <:item>
+                      <button
+                        type="button"
+                        phx-click={close_menu("edit_slot", "slot-#{slot.id}-menu")}
+                        phx-value-id={slot.id}
+                      >
+                        <.icon name="hero-pencil" class="size-4" /> Rename
+                      </button>
+                    </:item>
+                    <:item :if={length(@meal_slots) > 1}>
+                      <button
+                        type="button"
+                        class="text-error"
+                        phx-click={close_menu("delete_slot", "slot-#{slot.id}-menu")}
+                        phx-value-id={slot.id}
+                        data-confirm={"Delete the #{slot.name} slot?"}
+                      >
+                        <.icon name="hero-trash" class="size-4" /> Delete
+                      </button>
+                    </:item>
+                  </.row_menu>
+                </:actions>
+              </.list_row>
+            <% end %>
+          </.row_list>
 
-      <dl :if={!@owner?} id="household-details" class="divide-y divide-base-300">
-        <div class="flex justify-between py-3">
-          <dt class="text-base-content/60">Usually feeding</dt>
-          <dd id="usually-feeding">{@current_scope.household.usually_feeding}</dd>
-        </div>
-        <div class="flex justify-between py-3">
-          <dt class="text-base-content/60">Time zone</dt>
-          <dd id="time-zone">{@current_scope.household.time_zone}</dd>
-        </div>
-      </dl>
+          <.confirm_panel
+            :if={@deleting_slot}
+            id="delete-slot-panel"
+            title={"Delete #{@deleting_slot.slot.name}?"}
+            confirm={"Delete #{@deleting_slot.slot.name}"}
+            form="delete-slot-form"
+            on_cancel="cancel_delete_slot"
+          >
+            {ngettext(
+              "It has a meal planned from today:",
+              "It has %{count} meals planned from today:",
+              length(@deleting_slot.upcoming)
+            )}
+            <span :if={@deleting_slot.archive?}>Past weeks will still show it.</span>
+            <:item :for={planned <- @deleting_slot.upcoming}>
+              {planned.meal.name}, {Calendar.strftime(planned.date, "%a %-d %b")}
+            </:item>
+            <:extra>
+              <form id="delete-slot-form" phx-submit="confirm_delete_slot">
+                <label for="delete-slot-upcoming" class="label mb-1 text-sm">Those meals</label>
+                <select id="delete-slot-upcoming" name="upcoming" class="select w-full">
+                  <option
+                    :for={slot <- @meal_slots}
+                    :if={slot.id != @deleting_slot.slot.id}
+                    value={slot.id}
+                  >
+                    Move to {slot.name}
+                  </option>
+                  <option value="remove">Remove them from the plan</option>
+                </select>
+              </form>
+            </:extra>
+          </.confirm_panel>
 
-      <section id="meal-slots-section" class="space-y-3 pt-4">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="text-xl font-semibold">Meal slots</h2>
+          <.add_form
+            :if={@owner?}
+            for={@new_slot_form}
+            id="new-slot-form"
+            field={@new_slot_form[:name]}
+            label="Add a meal slot"
+            placeholder="Add a slot, e.g. Elevenses"
+            phx-change="validate_new_slot"
+            phx-submit="create_slot"
+          />
           <button
             :if={@owner? and @missing_defaults != []}
             type="button"
@@ -101,343 +248,187 @@ defmodule MealplanWeb.HouseholdLive.Settings do
             class="btn btn-ghost btn-sm"
             phx-click="restore_slots"
           >
-            <.icon name="hero-arrow-path" class="size-4" /> Restore defaults
+            <.icon name="hero-arrow-path" class="size-4" /> Restore default slots
           </button>
-        </div>
-        <p class="text-sm text-base-content/60">
-          The times of day you plan meals for, in order.
-          <span :if={@owner?} class="hidden sm:inline">Drag to reorder.</span>
-        </p>
-        <ol
-          id="meal-slots"
-          phx-hook="Sortable"
-          data-event="reorder_slots"
-          data-sortable={to_string(@owner? and is_nil(@editing_slot_id))}
-          class="divide-y divide-base-300 rounded-box border border-base-300"
-        >
-          <li
-            :for={{slot, index} <- Enum.with_index(@meal_slots)}
-            id={"slot-#{slot.id}"}
-            data-id={slot.id}
-            draggable={if @owner? and is_nil(@editing_slot_id), do: "true"}
-            class={[
-              "flex items-center gap-2 px-4 py-2 min-h-12 transition-colors",
-              @owner? && "hover:bg-base-200/60"
-            ]}
-          >
-            <%= if @editing_slot_id == slot.id do %>
-              <.form
-                for={@slot_form}
-                id="rename-slot-form"
-                phx-change="validate_slot"
-                phx-submit="rename_slot"
-                class="flex flex-1 flex-wrap items-start gap-2"
-              >
-                <input type="hidden" name="slot_id" value={slot.id} />
-                <div class="flex-1 min-w-40">
-                  <.input
-                    field={@slot_form[:name]}
-                    aria-label="Meal slot name"
-                    autocomplete="off"
-                    phx-mounted={JS.focus()}
-                  />
-                </div>
-                <.button variant="primary" phx-disable-with="Saving...">Save</.button>
-                <button type="button" class="btn btn-ghost" phx-click="cancel_rename">
-                  Cancel
-                </button>
-              </.form>
-            <% else %>
-              <.icon
-                :if={@owner?}
-                name="hero-bars-2"
-                class="hidden sm:block size-5 shrink-0 cursor-grab text-base-content/40"
-              />
-              <span class="flex-1 min-w-0 truncate">{slot.name}</span>
-              <span :if={@owner?} class="flex shrink-0 items-center">
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm btn-square"
-                  phx-click="move_slot"
-                  phx-value-id={slot.id}
-                  phx-value-direction="up"
-                  disabled={index == 0}
-                  aria-label={"Move #{slot.name} earlier"}
-                >
-                  <.icon name="hero-chevron-up" class="size-4" />
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm btn-square"
-                  phx-click="move_slot"
-                  phx-value-id={slot.id}
-                  phx-value-direction="down"
-                  disabled={index == length(@meal_slots) - 1}
-                  aria-label={"Move #{slot.name} later"}
-                >
-                  <.icon name="hero-chevron-down" class="size-4" />
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  phx-click="edit_slot"
-                  phx-value-id={slot.id}
-                >
-                  Rename
-                </button>
-                <button
-                  :if={length(@meal_slots) > 1}
-                  type="button"
-                  class="btn btn-ghost btn-sm text-error"
-                  phx-click="delete_slot"
-                  phx-value-id={slot.id}
-                  data-confirm={"Delete the #{slot.name} slot?"}
-                >
-                  Delete
-                </button>
-              </span>
-            <% end %>
-          </li>
-        </ol>
-        <div
-          :if={@deleting_slot}
-          id="delete-slot-panel"
-          role="alert"
-          class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
-        >
-          <p class="text-sm">
-            <strong>{@deleting_slot.slot.name}</strong>
-            has {length(@deleting_slot.upcoming)} {if length(@deleting_slot.upcoming) == 1,
-              do: "meal",
-              else: "meals"} planned from today: {Enum.map_join(
-              @deleting_slot.upcoming,
-              ", ",
-              &"#{&1.meal.name} (#{Calendar.strftime(&1.date, "%a %-d %b")})"
-            )}.
-            <span :if={@deleting_slot.archive?}>
-              Past weeks will still show it.
-            </span>
-          </p>
-          <form
-            id="delete-slot-form"
-            phx-submit="confirm_delete_slot"
-            class="flex flex-wrap items-end gap-2"
-          >
-            <label class="flex-1 min-w-48">
-              <span class="label mb-1 text-sm">Those meals</span>
-              <select name="upcoming" class="select w-full">
-                <option
-                  :for={slot <- @meal_slots}
-                  :if={slot.id != @deleting_slot.slot.id}
-                  value={slot.id}
-                >
-                  Move to {slot.name}
-                </option>
-                <option value="remove">Remove them from the plan</option>
-              </select>
-            </label>
-            <button type="button" class="btn btn-ghost" phx-click="cancel_delete_slot">
-              Cancel
-            </button>
-            <button class="btn btn-error">Delete {@deleting_slot.slot.name}</button>
-          </form>
-        </div>
-        <.form
-          :if={@owner?}
-          for={@new_slot_form}
-          id="new-slot-form"
-          phx-change="validate_new_slot"
-          phx-submit="create_slot"
-          class="flex flex-wrap items-start gap-2"
-        >
-          <div class="flex-1 min-w-48">
-            <.input
-              field={@new_slot_form[:name]}
-              placeholder="Add a slot, e.g. Elevenses"
-              aria-label="New meal slot name"
-              autocomplete="off"
-            />
-          </div>
-          <.button variant="primary" phx-disable-with="Adding...">Add</.button>
-        </.form>
-      </section>
+        </.section_card>
 
-      <section class="space-y-3 pt-4">
-        <h2 class="text-xl font-semibold">Members</h2>
-        <ul id="members" class="divide-y divide-base-300 rounded-box border border-base-300">
-          <li
-            :for={member <- @members}
-            id={"member-#{member.id}"}
-            class="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
-          >
-            <span class="min-w-0 truncate">
-              {member.email}<span
-                :if={member.id == @current_scope.user.id}
-                class="text-base-content/60"
-              > (you)</span>
-            </span>
-            <span :if={member.id == @current_scope.household.owner_id} class="badge badge-ghost">
-              owner
-            </span>
-            <span :if={@owner? and member.id != @current_scope.household.owner_id} class="flex gap-1">
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm"
-                phx-click="transfer"
-                phx-value-id={member.id}
-                data-confirm={"Make #{member.email} the owner? You'll become a regular member."}
-              >
-                Make owner
-              </button>
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm text-error"
-                phx-click="remove"
-                phx-value-id={member.id}
-                data-confirm={"Remove #{member.email} from the household?"}
-              >
-                Remove
-              </button>
-            </span>
-          </li>
-        </ul>
-        <button
-          :if={!@owner?}
-          type="button"
-          id="leave-household"
-          class="btn btn-ghost btn-sm text-error"
-          phx-click="leave"
-          data-confirm={"Leave #{@current_scope.household.name}? You'll lose access to its recipes and plans."}
+        <.section_card
+          id="members-section"
+          title="Members"
+          help="Everyone here can plan, cook and shop. Only the owner manages the household."
         >
-          Leave household
-        </button>
-        <p :if={@owner? and length(@members) > 1} class="text-sm text-base-content/60">
-          To leave, make someone else the owner first.
-        </p>
-      </section>
+          <.row_list id="members">
+            <.list_row :for={member <- @members} id={"member-#{member.id}"}>
+              {member.email}
+              <:meta>{member_role(member, @current_scope)}</:meta>
+              <:actions :if={@owner? and member.id != @current_scope.household.owner_id}>
+                <.row_menu id={"member-#{member.id}-menu"} label={"Actions for #{member.email}"}>
+                  <:item>
+                    <button
+                      type="button"
+                      phx-click={close_menu("transfer", "member-#{member.id}-menu")}
+                      phx-value-id={member.id}
+                      data-confirm={"Make #{member.email} the owner? You'll become a regular member."}
+                    >
+                      <.icon name="hero-key" class="size-4" /> Make owner
+                    </button>
+                  </:item>
+                  <:item>
+                    <button
+                      type="button"
+                      class="text-error"
+                      phx-click={close_menu("remove", "member-#{member.id}-menu")}
+                      phx-value-id={member.id}
+                      data-confirm={"Remove #{member.email} from the household?"}
+                    >
+                      <.icon name="hero-user-minus" class="size-4" /> Remove
+                    </button>
+                  </:item>
+                </.row_menu>
+              </:actions>
+            </.list_row>
+          </.row_list>
 
-      <section :if={@owner?} class="space-y-3 pt-4">
-        <h2 class="text-xl font-semibold">Invite someone</h2>
-        <.form
-          for={@invite_form}
-          id="invite-form"
-          phx-change="validate_invite"
-          phx-submit="invite"
-          class="flex flex-wrap items-start gap-2"
-        >
-          <div class="flex-1 min-w-48">
-            <.input
+          <.row_list :if={@pending_invitations != []} id="pending-invitations">
+            <.list_row :for={invitation <- @pending_invitations} id={"invitation-#{invitation.id}"}>
+              {invitation.email}
+              <:meta>Invited · {expires_in(invitation.expires_at)}</:meta>
+              <:actions>
+                <button
+                  type="button"
+                  class="btn btn-ghost"
+                  phx-click="revoke"
+                  phx-value-id={invitation.id}
+                  data-confirm={"Revoke the invitation for #{invitation.email}?"}
+                >
+                  Revoke
+                </button>
+              </:actions>
+            </.list_row>
+          </.row_list>
+
+          <div :if={@owner?} class="space-y-1">
+            <.add_form
+              for={@invite_form}
+              id="invite-form"
               field={@invite_form[:email]}
               type="email"
+              label="Invite someone"
+              show_label
               placeholder="name@example.com"
-              autocomplete="off"
-              spellcheck="false"
+              button="Invite"
+              phx-change="validate_invite"
+              phx-submit="invite"
             />
+            <p class="text-sm text-base-content/70">
+              They'll get an email with a link to log in and join. Invitations expire after {Invitation.validity_days()} days.
+            </p>
           </div>
-          <.button variant="primary" phx-disable-with="Sending...">Invite</.button>
-        </.form>
-        <p class="text-sm text-base-content/60">
-          They'll get an email with a link to log in and join. Invitations expire after {Invitation.validity_days()} days.
-        </p>
+          <p :if={@owner? and length(@members) > 1} class="text-sm text-base-content/70">
+            To leave, make someone else the owner first.
+          </p>
+        </.section_card>
 
-        <ul
-          :if={@pending_invitations != []}
-          id="pending-invitations"
-          class="divide-y divide-base-300 rounded-box border border-base-300"
+        <.section_card
+          :if={@my_invitations != []}
+          id="my-invitations"
+          title="Invitations for you"
+          help="To join another household, you'll need to leave this one first."
         >
-          <li
-            :for={invitation <- @pending_invitations}
-            id={"invitation-#{invitation.id}"}
-            class="flex items-center justify-between gap-3 px-4 py-3"
-          >
-            <span class="min-w-0">
-              <span class="block truncate">{invitation.email}</span>
-              <span class="text-sm text-base-content/60">
-                invited · {expires_in(invitation.expires_at)}
-              </span>
-            </span>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              phx-click="revoke"
-              phx-value-id={invitation.id}
-              data-confirm={"Revoke the invitation for #{invitation.email}?"}
-            >
-              Revoke
-            </button>
-          </li>
-        </ul>
-      </section>
+          <.row_list id="my-invitation-list">
+            <.list_row :for={invitation <- @my_invitations} id={"my-invitation-#{invitation.id}"}>
+              {invitation.household.name}
+              <:actions>
+                <button
+                  type="button"
+                  class="btn btn-ghost"
+                  phx-click="decline"
+                  phx-value-id={invitation.id}
+                >
+                  Decline
+                </button>
+              </:actions>
+            </.list_row>
+          </.row_list>
+        </.section_card>
 
-      <section :if={@my_invitations != []} id="my-invitations" class="space-y-3 pt-4">
-        <h2 class="text-xl font-semibold">Invitations for you</h2>
-        <p class="text-sm text-base-content/60">
-          To join another household, you'll need to leave this one first.
-        </p>
-        <ul class="divide-y divide-base-300 rounded-box border border-base-300">
-          <li
-            :for={invitation <- @my_invitations}
-            id={"my-invitation-#{invitation.id}"}
-            class="flex items-center justify-between gap-3 px-4 py-3"
-          >
-            <span class="min-w-0 truncate">{invitation.household.name}</span>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              phx-click="decline"
-              phx-value-id={invitation.id}
-            >
-              Decline
-            </button>
-          </li>
-        </ul>
-      </section>
-
-      <section :if={@owner?} id="transfer" class="space-y-3 pt-4">
-        <h2 class="text-xl font-semibold">Import and export</h2>
-        <p class="text-sm text-base-content/60">
-          Download your recipes and meals as Cooklang files, to keep a copy or use them in
-          other Cooklang apps, or import recipes and meals from such files.
-        </p>
-        <a
-          href={~p"/household/export"}
-          id="export-household"
-          class="btn btn-soft btn-primary"
-          download
+        <.section_card
+          :if={@owner?}
+          id="transfer"
+          title="Import and export"
+          help="Download your recipes and meals as Cooklang files, to keep a copy or use them in other Cooklang apps, or import recipes and meals from such files."
         >
-          <.icon name="hero-arrow-down-tray" class="size-4" /> Export recipes and meals
-        </a>
-        <.link navigate={~p"/household/import"} id="import-household" class="btn btn-ghost">
-          <.icon name="hero-arrow-up-tray" class="size-4" /> Import...
-        </.link>
-      </section>
-
-      <section :if={@owner?} id="delete-household" class="space-y-3 pt-8">
-        <h2 class="text-xl font-semibold text-error">Delete household</h2>
-        <p class="text-sm text-base-content/60">
-          Deletes all of the household's recipes, meals and plans, and removes every member.
-          This can't be undone. Type <strong>{@current_scope.household.name}</strong> to confirm.
-        </p>
-        <.form
-          for={%{}}
-          as={:delete}
-          id="delete-form"
-          phx-submit="delete"
-          class="flex flex-wrap items-start gap-2"
-        >
-          <div class="flex-1 min-w-48">
-            <.input
-              type="text"
-              id="delete-confirmation"
-              name="confirmation"
-              value=""
-              autocomplete="off"
-              aria-label="Household name"
-            />
+          <div class="flex flex-wrap gap-2">
+            <a href={~p"/household/export"} id="export-household" class="btn" download>
+              <.icon name="hero-arrow-down-tray" class="size-4" /> Export recipes and meals
+            </a>
+            <.link navigate={~p"/household/import"} id="import-household" class="btn">
+              <.icon name="hero-arrow-up-tray" class="size-4" /> Import…
+            </.link>
           </div>
-          <.button variant="danger">Delete household</.button>
-        </.form>
-      </section>
+        </.section_card>
+
+        <.section_card
+          :if={!@owner?}
+          id="leave"
+          title="Leave household"
+          help="You'll lose access to its recipes, meals and plans."
+          danger
+        >
+          <button
+            type="button"
+            id="leave-household"
+            class="btn btn-outline btn-error"
+            phx-click="leave"
+            data-confirm={"Leave #{@current_scope.household.name}? You'll lose access to its recipes and plans."}
+          >
+            <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Leave household
+          </button>
+        </.section_card>
+
+        <.section_card
+          :if={@owner? and !@confirm_delete?}
+          id="delete-household"
+          title="Delete household"
+          help="Deletes every recipe, meal and plan, and removes all members. This can't be undone."
+          danger
+        >
+          <button
+            type="button"
+            id="start-delete-household"
+            class="btn btn-outline btn-error"
+            phx-click="start_delete"
+          >
+            <.icon name="hero-trash" class="size-4" /> Delete household…
+          </button>
+        </.section_card>
+        <.confirm_panel
+          :if={@confirm_delete?}
+          id="delete-household-panel"
+          title={"Delete #{@current_scope.household.name}?"}
+          confirm="Delete household"
+          confirm_id="confirm-delete-household"
+          form="delete-form"
+          on_cancel="cancel_delete"
+        >
+          Deletes every recipe, meal and plan, and removes all members. This can't be undone.
+          Type <strong>{@current_scope.household.name}</strong>
+          to confirm.
+          <:extra>
+            <form id="delete-form" phx-submit="delete">
+              <.input
+                type="text"
+                id="delete-confirmation"
+                name="confirmation"
+                value=""
+                autocomplete="off"
+                aria-label="Household name"
+                phx-mounted={JS.focus()}
+              />
+            </form>
+          </:extra>
+        </.confirm_panel>
+      </div>
     </Layouts.app>
     """
   end
@@ -450,7 +441,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
      socket
      |> assign(page_title: "Household", owner?: Households.owner?(scope))
      |> assign(invite_form: to_form(Households.change_invitation()))
-     |> assign(editing_slot_id: nil, slot_form: nil, deleting_slot: nil)
+     |> assign(editing_slot_id: nil, slot_form: nil, deleting_slot: nil, confirm_delete?: false)
      |> assign_new_slot_form(Households.change_meal_slot())
      |> assign_lists()
      |> assign_form(Households.change_household(scope.household))}
@@ -497,6 +488,18 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       {:error, :unauthorized} ->
         {:noreply, put_flash(socket, :error, "Only the owner can change the household.")}
     end
+  end
+
+  def handle_event("adjust_feeding", %{"delta" => delta}, socket) do
+    form = socket.assigns.form
+    feeding = step_field(form[:usually_feeding], delta, 1, 50)
+
+    changeset =
+      socket.assigns.current_scope.household
+      |> Households.change_household(Map.put(form.params, "usually_feeding", feeding))
+      |> Map.put(:action, form.source.action)
+
+    {:noreply, assign_form(socket, changeset)}
   end
 
   def handle_event("validate_invite", %{"invitation" => params}, socket) do
@@ -709,6 +712,12 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     end
   end
 
+  def handle_event("start_delete", _params, socket),
+    do: {:noreply, assign(socket, confirm_delete?: true)}
+
+  def handle_event("cancel_delete", _params, socket),
+    do: {:noreply, assign(socket, confirm_delete?: false)}
+
   def handle_event("delete", %{"confirmation" => confirmation}, socket) do
     case Households.delete_household(socket.assigns.current_scope, confirmation) do
       :ok ->
@@ -782,6 +791,21 @@ defmodule MealplanWeb.HouseholdLive.Settings do
     socket
     |> put_flash(:error, "Couldn't change the meal slots; they may have just changed elsewhere.")
     |> assign_lists()
+  end
+
+  defp summary(owner?, members, invitations) do
+    [
+      if(owner?, do: "You're the owner", else: "Only the owner can change the details"),
+      ngettext("1 member", "%{count} members", length(members)),
+      invitations != [] && ngettext("1 invitation", "%{count} invitations", length(invitations))
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" · ")
+  end
+
+  defp member_role(member, scope) do
+    role = if member.id == scope.household.owner_id, do: "Owner", else: "Member"
+    if member.id == scope.user.id, do: role <> " · you", else: role
   end
 
   defp expires_in(expires_at) do

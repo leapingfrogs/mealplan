@@ -24,20 +24,23 @@ defmodule MealplanWeb.HouseholdLive.SettingsTest do
       {:ok, view, _html} = live(conn, ~p"/household")
 
       assert has_element?(view, "#household-form")
-      assert has_element?(view, "#member-#{user.id}", "(you)")
-      assert has_element?(view, "#member-#{user.id} .badge", "owner")
+      assert has_element?(view, "#member-#{user.id}", "Owner · you")
       assert has_element?(view, "#member-#{member.id}", member.email)
-      refute has_element?(view, "#member-#{member.id} .badge", "owner")
+      assert has_element?(view, "#member-#{member.id}", "Member")
     end
 
     test "saves changes and updates the header", %{conn: conn, household: household} do
       {:ok, view, _html} = live(conn, ~p"/household")
 
+      view
+      |> element("#household_usually_feeding-stepper button[aria-label='More people']")
+      |> render_click()
+
+      assert has_element?(view, "#household_usually_feeding-stepper output", "5")
+
       html =
         view
-        |> form("#household-form",
-          household: %{name: "The Renamed", usually_feeding: 5, time_zone: "Europe/Paris"}
-        )
+        |> form("#household-form", household: %{name: "The Renamed", time_zone: "Europe/Paris"})
         |> render_submit()
 
       assert html =~ "Household updated."

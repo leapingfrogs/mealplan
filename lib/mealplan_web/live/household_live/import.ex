@@ -23,18 +23,14 @@ defmodule MealplanWeb.HouseholdLive.Import do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="household">
-      <.link navigate={~p"/household"} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> Household
-      </.link>
-
-      <.header>
+      <.page_header back={~p"/household"} back_label="Household">
         Import recipes and meals
-        <:subtitle>
+        <:meta>
           A Mealplan export, Cooklang <code>.cook</code>
           recipes, a <code>.menu</code>
           of meals, or a zip of a recipe folder.
-        </:subtitle>
-      </.header>
+        </:meta>
+      </.page_header>
 
       <%= case @step do %>
         <% :upload -> %>
@@ -61,51 +57,50 @@ defmodule MealplanWeb.HouseholdLive.Import do
       <label
         for={@uploads.files.ref}
         phx-drop-target={@uploads.files.ref}
-        class="flex cursor-pointer flex-col items-center gap-2 rounded-box border-2 border-dashed border-base-300 px-4 py-10 text-center transition-colors hover:border-primary/50 hover:bg-base-200/50"
+        class="flex min-h-56 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-box border-2 border-dashed border-base-300 bg-base-100 px-4 py-10 text-center transition-colors hover:border-primary/50 hover:bg-base-200/50 phx-drop-target-active:border-primary phx-drop-target-active:bg-primary/5"
       >
-        <.icon name="hero-arrow-up-tray" class="size-8 text-base-content/40" />
+        <.icon name="hero-arrow-up-tray" class="size-8 text-base-content/50" />
         <span class="font-medium">Choose files or drop them here</span>
-        <span class="text-sm text-base-content/60">.zip, .cook or .menu, up to 10 MB</span>
+        <span class="text-sm text-base-content/70">.zip, .cook or .menu, up to 10 MB</span>
         <.live_file_input upload={@uploads.files} class="sr-only" />
       </label>
 
-      <ul :if={@uploads.files.entries != []} id="chosen-files" class="space-y-1">
-        <li
-          :for={entry <- @uploads.files.entries}
-          class="flex items-center justify-between gap-2 text-sm"
-        >
-          <span class="min-w-0 truncate">{entry.client_name}</span>
-          <span class="flex shrink-0 items-center gap-2">
-            <span
-              :for={error <- upload_errors(@uploads.files, entry)}
-              class="text-error"
-            >
+      <.row_list :if={@uploads.files.entries != []} id="chosen-files">
+        <.list_row :for={entry <- @uploads.files.entries} id={"file-#{entry.ref}"}>
+          {entry.client_name}
+          <:lead><.icon name="hero-document" class="size-5 text-base-content/50" /></:lead>
+          <:meta :if={upload_errors(@uploads.files, entry) != []}>
+            <span :for={error <- upload_errors(@uploads.files, entry)} class="text-error">
               {upload_error(error)}
             </span>
+          </:meta>
+          <:actions>
             <button
               type="button"
-              class="btn btn-ghost btn-xs"
+              class="btn btn-ghost btn-square"
               phx-click="cancel_upload"
               phx-value-ref={entry.ref}
               aria-label={"Remove #{entry.client_name}"}
             >
               <.icon name="hero-x-mark" class="size-4" />
             </button>
-          </span>
-        </li>
-      </ul>
+          </:actions>
+        </.list_row>
+      </.row_list>
       <p :for={error <- upload_errors(@uploads.files)} class="text-sm text-error">
         {upload_error(error)}
       </p>
 
-      <.button
-        variant="primary"
-        id="read-files"
-        disabled={@uploads.files.entries == []}
-        phx-disable-with="Reading..."
-      >
-        Continue
-      </.button>
+      <div class="flex justify-end">
+        <.button
+          variant="primary"
+          id="read-files"
+          disabled={@uploads.files.entries == []}
+          phx-disable-with="Reading…"
+        >
+          Continue
+        </.button>
+      </div>
     </form>
     """
   end
@@ -117,24 +112,19 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
   defp preview_step(assigns) do
     ~H"""
-    <p id="import-counts" class="text-sm">{counts(@import)}</p>
+    <p id="import-counts" class="mb-4 text-base-content/80">{counts(@import)}</p>
 
-    <form id="import-choices" phx-change="choose" phx-submit="apply" class="space-y-6">
-      <section :if={@import.recipes != []} class="space-y-2">
-        <h2 class="text-xl font-semibold">Recipes</h2>
-        <ul class="divide-y divide-base-300 rounded-box border border-base-300">
-          <li
-            :for={item <- @import.recipes}
-            id={"item-#{item.key}"}
-            class="space-y-1 px-3 py-2"
-          >
+    <form id="import-choices" phx-change="choose" phx-submit="apply" class="space-y-4">
+      <.section_card :if={@import.recipes != []} id="import-recipes" title="Recipes">
+        <.row_list id="import-recipe-list">
+          <li :for={item <- @import.recipes} id={"item-#{item.key}"} class="space-y-2 px-4 py-3">
             <.item_row item={item} choice={@choices[item.key]}>
               <:detail>
                 Serves {item.servings}
                 <span :if={item.existing} class="text-warning">· we already have {item.existing.name}</span>
               </:detail>
             </.item_row>
-            <details :if={item.imported.warnings != []} class="text-xs text-warning">
+            <details :if={item.imported.warnings != []} class="text-sm text-warning">
               <summary class="cursor-pointer">
                 {length(item.imported.warnings)} {if length(item.imported.warnings) == 1,
                   do: "problem",
@@ -147,19 +137,18 @@ defmodule MealplanWeb.HouseholdLive.Import do
               </ul>
             </details>
           </li>
-        </ul>
-      </section>
+        </.row_list>
+      </.section_card>
 
-      <section :if={@import.meals != []} class="space-y-2">
-        <h2 class="text-xl font-semibold">Meals</h2>
+      <.section_card :if={@import.meals != []} id="import-meals" title="Meals">
         <div
           :if={@slots != [] and untagged(@import, @choices) != []}
           id="bulk-slots"
-          class="space-y-2 rounded-box border border-base-300 bg-base-200/50 p-3"
+          class="space-y-3 rounded-box bg-base-200/60 p-4"
         >
           <p class="text-sm">
             Set slots for meals without any
-            <span class="text-base-content/60">
+            <span class="text-base-content/70">
               ({plural(length(untagged(@import, @choices)), "meal")})
             </span>
           </p>
@@ -170,18 +159,23 @@ defmodule MealplanWeb.HouseholdLive.Import do
             event="toggle_bulk_slot"
             key="bulk"
           />
-          <button
-            type="button"
-            id="apply-bulk-slots"
-            class="btn btn-sm"
-            phx-click="apply_bulk_slots"
-            disabled={@bulk_slots == []}
-          >
-            Set for {plural(length(untagged(@import, @choices)), "meal")}
-          </button>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              id="apply-bulk-slots"
+              class="btn"
+              phx-click="apply_bulk_slots"
+              disabled={@bulk_slots == []}
+            >
+              Set for {plural(length(untagged(@import, @choices)), "meal")}
+            </button>
+            <span :if={@bulk_slots == []} class="text-sm text-base-content/70">
+              Choose slots first.
+            </span>
+          </div>
         </div>
-        <ul class="divide-y divide-base-300 rounded-box border border-base-300">
-          <li :for={item <- @import.meals} id={"item-#{item.key}"} class="space-y-2 px-3 py-2">
+        <.row_list id="import-meal-list">
+          <li :for={item <- @import.meals} id={"item-#{item.key}"} class="space-y-2 px-4 py-3">
             <.item_row item={item} choice={@choices[item.key]}>
               <:detail>
                 {references(item, @import, @choices)}
@@ -199,44 +193,45 @@ defmodule MealplanWeb.HouseholdLive.Import do
               <p
                 :if={item.unmatched_slots != []}
                 id={"unmatched-#{item.key}"}
-                class="text-xs text-warning"
+                class="text-sm text-warning"
               >
                 {Enum.map_join(item.unmatched_slots, ", ", &"#{&1}: no such slot")}
               </p>
             </div>
           </li>
-        </ul>
-      </section>
+        </.row_list>
+      </.section_card>
 
-      <p
-        :if={@import.recipes == [] and @import.meals == []}
-        class="py-6 text-center text-base-content/60"
-      >
+      <.empty_state :if={@import.recipes == [] and @import.meals == []} id="nothing-to-import">
         Nothing to import in those files.
-      </p>
+      </.empty_state>
 
-      <section :if={@import.problems != []} id="import-problems" class="space-y-2">
-        <h2 class="font-semibold">Not imported</h2>
-        <ul class="space-y-1 text-sm text-base-content/70">
+      <.section_card
+        :if={@import.problems != []}
+        id="import-problems"
+        title="Not imported"
+        help="These files or parts of them couldn't be read."
+      >
+        <ul class="space-y-2 text-sm">
           <li :for={problem <- @import.problems} class="flex gap-2">
             <.icon name="hero-exclamation-triangle" class="size-4 shrink-0 mt-0.5 text-warning" />
             <span><span class="font-medium">{problem.file}</span> {problem.message}</span>
           </li>
         </ul>
-      </section>
+      </.section_card>
 
-      <div class="flex gap-2">
+      <div class="flex flex-wrap justify-end gap-2">
+        <button type="button" id="cancel-import" class="btn btn-ghost" phx-click="start_over">
+          Start over
+        </button>
         <.button
           :if={@import.recipes != [] or @import.meals != []}
           variant="primary"
           id="apply-import"
-          phx-disable-with="Importing..."
+          phx-disable-with="Importing…"
         >
           Import
         </.button>
-        <button type="button" id="cancel-import" class="btn btn-ghost" phx-click="start_over">
-          Start over
-        </button>
       </div>
     </form>
     """
@@ -255,20 +250,20 @@ defmodule MealplanWeb.HouseholdLive.Import do
       )
 
     ~H"""
-    <div class="flex flex-wrap items-center justify-between gap-2">
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
       <div class="min-w-0">
         <p class={[
-          "truncate font-medium",
+          "break-words font-medium",
           @choice == :leave_out && "text-base-content/40 line-through"
         ]}>
           {@item.imported.name}
         </p>
-        <p class="text-xs text-base-content/60">{render_slot(@detail)}</p>
+        <p class="text-sm text-base-content/70">{render_slot(@detail)}</p>
       </div>
       <select
         name={"choices[#{@item.key}]"}
         aria-label={"What to do with #{@item.imported.name}"}
-        class={["select select-sm w-auto", @item.existing && "select-warning"]}
+        class={["select w-36 sm:w-44", @item.existing && "select-warning"]}
       >
         <option :for={{label, action} <- @options} value={action} selected={action == @choice}>
           {label}
@@ -286,23 +281,18 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
   defp slot_chips(assigns) do
     ~H"""
-    <div id={"slots-#{@id}"} class="flex flex-wrap gap-1.5" role="group" aria-label="Slots">
-      <button
+    <.chip_group id={"slots-#{@id}"} label="Slots">
+      <.chip
         :for={slot <- @slots}
-        type="button"
         id={"slot-#{@id}-#{slot.id}"}
-        class={[
-          "btn btn-xs rounded-full transition-colors",
-          if(slot.id in @chosen, do: "btn-primary", else: "btn-outline border-base-300")
-        ]}
-        aria-pressed={to_string(slot.id in @chosen)}
+        pressed={slot.id in @chosen}
         phx-click={@event}
         phx-value-key={@key}
         phx-value-slot={slot.id}
       >
-        <.icon :if={slot.id in @chosen} name="hero-check" class="size-3" /> {slot.name}
-      </button>
-    </div>
+        {slot.name}
+      </.chip>
+    </.chip_group>
     """
   end
 
@@ -310,11 +300,14 @@ defmodule MealplanWeb.HouseholdLive.Import do
 
   defp done_step(assigns) do
     ~H"""
-    <div id="import-summary" class="space-y-4 rounded-box border border-success/40 bg-success/10 p-4">
-      <p class="font-medium">
-        <.icon name="hero-check-circle" class="size-5 text-success" /> Imported.
-      </p>
-      <ul class="space-y-1 text-sm">
+    <div
+      id="import-summary"
+      class="space-y-4 rounded-box border border-success/40 bg-base-100 p-4 sm:p-5"
+    >
+      <h2 class="flex items-center gap-2 text-xl font-semibold">
+        <.icon name="hero-check-circle" class="size-6 text-success" /> Imported
+      </h2>
+      <ul class="space-y-1">
         <li>Recipes: {summary_line(@summary.recipes)}</li>
         <li>Meals: {summary_line(@summary.meals)}</li>
       </ul>
