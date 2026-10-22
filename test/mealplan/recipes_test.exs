@@ -138,6 +138,13 @@ defmodule Mealplan.RecipesTest do
                scope |> Recipes.list_recipes() |> Enum.map(&{&1.name, &1.ingredient_count})
     end
 
+    test "names that differ only in case always come in the same order", %{scope: scope} do
+      recipe_fixture(scope, %{name: "soup"})
+      recipe_fixture(scope, %{name: "Soup"})
+
+      assert scope |> Recipes.list_recipes("soup") |> Enum.map(& &1.name) == ["Soup", "soup"]
+    end
+
     test "searches names and ingredients, ignoring case", %{scope: scope} do
       names = fn search -> scope |> Recipes.list_recipes(search) |> Enum.map(& &1.name) end
 
