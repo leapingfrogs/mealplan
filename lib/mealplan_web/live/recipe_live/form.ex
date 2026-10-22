@@ -14,14 +14,10 @@ defmodule MealplanWeb.RecipeLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} section="recipes">
-      <.link navigate={@back} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> {if @live_action == :new,
-          do: "Recipes",
-          else: @recipe.name}
-      </.link>
-
-      <.header>{@page_title}</.header>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="recipes" wide>
+      <.page_header back={@back} back_label={if @live_action == :new, do: "Recipes", else: "Recipe"}>
+        {@page_title}
+      </.page_header>
 
       <div :if={@changed_elsewhere?} id="changed-elsewhere" role="alert" class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="size-5" />
@@ -29,7 +25,7 @@ defmodule MealplanWeb.RecipeLive.Form do
       </div>
 
       <.form for={@form} id="recipe-form" phx-change="validate" phx-submit="save" class="space-y-4">
-        <div class="grid grid-cols-[1fr_6rem] gap-3">
+        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem]">
           <.input field={@form[:name]} label="Name" autocomplete="off" phx-debounce="300" />
           <.input
             field={@form[:servings]}
@@ -41,7 +37,8 @@ defmodule MealplanWeb.RecipeLive.Form do
           />
         </div>
 
-        <div role="tablist" class="tabs tabs-border">
+        <%!-- Tabs on smaller screens; Write and Preview side by side from 1280 px. --%>
+        <div role="tablist" class="tabs tabs-border xl:hidden">
           <button
             :for={{tab, label} <- [{"write", "Write"}, {"preview", "Preview"}]}
             type="button"
@@ -56,63 +53,79 @@ defmodule MealplanWeb.RecipeLive.Form do
           </button>
         </div>
 
-        <div id="write-panel" class={["space-y-3", @tab != "write" && "hidden"]}>
-          <.input
-            field={@form[:source]}
-            type="textarea"
-            rows="14"
-            spellcheck="false"
-            phx-debounce="300"
-            aria-label="Recipe in Cooklang"
-            placeholder="Whisk @eggs{3} with @milk{300%ml} in a #bowl{}. Rest for ~{30%minutes}."
-            class="textarea w-full font-mono text-sm leading-relaxed"
-          />
-          <p class="text-xs text-base-content/60">
-            Each paragraph is a step. Mark ingredients <code>@flour{"{250%g}"}</code>, cookware
-            <code>#pan{"{}"}</code>
-            and timers <code>~{"{10%minutes}"}</code>.
-            <a
-              href="https://cooklang.org/docs/spec/"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="link"
+        <div class="xl:grid xl:grid-cols-2 xl:items-start xl:gap-8">
+          <div id="write-panel" class={["space-y-3", @tab != "write" && "hidden xl:block"]}>
+            <.input
+              field={@form[:source]}
+              type="textarea"
+              rows="14"
+              spellcheck="false"
+              phx-debounce="300"
+              aria-label="Recipe in Cooklang"
+              placeholder="Whisk @eggs{3} with @milk{300%ml} in a #bowl{}. Rest for ~{30%minutes}."
+              class="textarea w-full font-mono text-sm leading-relaxed"
+            />
+            <p class="text-xs text-base-content/60">
+              Each paragraph is a step. Mark ingredients <code>@flour{"{250%g}"}</code>, cookware
+              <code>#pan{"{}"}</code>
+              and timers <code>~{"{10%minutes}"}</code>.
+              <a
+                href="https://cooklang.org/docs/spec/"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="link"
+              >
+                Cooklang guide
+              </a>
+            </p>
+            <.warnings id="source-warnings" warnings={@parsed.warnings} />
+            <div
+              :if={@parsed.ingredients != []}
+              id="ingredient-summary"
+              class="flex flex-wrap gap-1.5"
             >
-              Cooklang guide
-            </a>
-          </p>
-          <.warnings id="source-warnings" warnings={@parsed.warnings} />
-          <div :if={@parsed.ingredients != []} id="ingredient-summary" class="flex flex-wrap gap-1.5">
-            <span
-              :for={ingredient <- @parsed.ingredients}
-              class="badge badge-soft badge-primary gap-1"
-            >
-              {ingredient.name}
-              <span :if={amount(ingredient.quantity, ingredient.unit)} class="opacity-70">
-                {amount(ingredient.quantity, ingredient.unit)}
+              <span
+                :for={ingredient <- @parsed.ingredients}
+                class="badge badge-soft badge-primary gap-1"
+              >
+                {ingredient.name}
+                <span :if={amount(ingredient.quantity, ingredient.unit)} class="opacity-70">
+                  {amount(ingredient.quantity, ingredient.unit)}
+                </span>
               </span>
-            </span>
+            </div>
+          </div>
+
+          <div
+            id="preview-panel"
+            class={[
+              "space-y-6 xl:sticky xl:top-6 xl:rounded-box xl:border xl:border-base-300 xl:p-5",
+              @tab != "preview" && "hidden xl:block"
+            ]}
+          >
+            <h2 class="hidden text-sm font-semibold uppercase tracking-wide text-base-content/60 xl:block">
+              Preview
+            </h2>
+            <p
+              :if={@parsed.ingredients == [] and @parsed.sections |> Enum.all?(&(&1.blocks == []))}
+              class="py-6 text-center text-base-content/60"
+            >
+              Nothing to preview yet.
+            </p>
+            <section :if={@parsed.ingredients != []} class="space-y-2">
+              <h2 class="font-semibold">Ingredients</h2>
+              <.ingredient_list id="preview-ingredients" ingredients={@parsed.ingredients} />
+            </section>
+            <.method id="preview-method" recipe={@parsed} />
           </div>
         </div>
 
-        <div id="preview-panel" class={["space-y-6", @tab != "preview" && "hidden"]}>
-          <p
-            :if={@parsed.ingredients == [] and @parsed.sections |> Enum.all?(&(&1.blocks == []))}
-            class="py-6 text-center text-base-content/60"
-          >
-            Nothing to preview yet.
-          </p>
-          <section :if={@parsed.ingredients != []} class="space-y-2">
-            <h2 class="font-semibold">Ingredients</h2>
-            <.ingredient_list id="preview-ingredients" ingredients={@parsed.ingredients} />
-          </section>
-          <.method id="preview-method" recipe={@parsed} />
-        </div>
-
-        <div class="flex gap-2 pt-2">
+        <%!-- Kept in reach above the tab bar on phones. --%>
+        <div class="sticky bottom-(--tab-bar) z-10 -mx-4 flex gap-2 border-t border-base-300 bg-base-100 px-4 py-3 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:pt-2 lg:pb-0">
           <.button variant="primary" phx-disable-with="Saving..." id="save-recipe">
             Save recipe
           </.button>
-          <.button navigate={@back}>Cancel</.button>
+          <.link navigate={@back} class="btn btn-ghost">Cancel</.link>
         </div>
       </.form>
     </Layouts.app>

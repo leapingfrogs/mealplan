@@ -8,41 +8,33 @@ defmodule MealplanWeb.RecipeLive.Archived do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="recipes">
-      <.link navigate={~p"/recipes"} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> Recipes
-      </.link>
-
-      <.header>
+      <.page_header back={~p"/recipes"} back_label="Recipes">
         Archived recipes
-        <:subtitle>Hidden from lists and pickers, but kept for past plans.</:subtitle>
-      </.header>
+        <:meta>Hidden from lists and pickers, but kept for past plans.</:meta>
+      </.page_header>
 
-      <p :if={@recipes == []} id="no-archived" class="py-8 text-center text-base-content/60">
-        Nothing archived.
-      </p>
-      <ul
-        :if={@recipes != []}
-        id="archived"
-        class="divide-y divide-base-300 rounded-box border border-base-300"
-      >
-        <li
+      <.empty_state :if={@recipes == []} id="no-archived">Nothing archived.</.empty_state>
+
+      <.row_list :if={@recipes != []} id="archived">
+        <.list_row
           :for={recipe <- @recipes}
           id={"archived-#{recipe.id}"}
-          class="flex items-center justify-between gap-3 px-4 py-3"
+          navigate={~p"/recipes/#{recipe}"}
+          title={recipe.name}
         >
-          <.link navigate={~p"/recipes/#{recipe}"} class="min-w-0 truncate hover:underline">
-            {recipe.name}
-          </.link>
-          <button
-            type="button"
-            class="btn btn-sm btn-ghost"
-            phx-click="restore"
-            phx-value-id={recipe.id}
-          >
-            <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
-          </button>
-        </li>
-      </ul>
+          {recipe.name}
+          <:actions>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              phx-click="restore"
+              phx-value-id={recipe.id}
+            >
+              <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
+            </button>
+          </:actions>
+        </.list_row>
+      </.row_list>
     </Layouts.app>
     """
   end

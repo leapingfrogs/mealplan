@@ -121,6 +121,25 @@ defmodule MealplanWeb.RecipeLiveTest do
       assert has_element?(edit, "#changed-elsewhere")
     end
 
+    test "the page shows the time and source from the front matter", %{conn: conn, scope: scope} do
+      recipe =
+        recipe_fixture(scope, %{
+          name: "Tagine",
+          servings: 6,
+          source: "---\ntime: 3 hours\nsource: https://example.com/tagine\n---\nCook @lamb{1%kg}."
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/recipes/#{recipe}")
+
+      assert has_element?(view, "#page-header", "Serves 6 · 3 hours · example.com")
+
+      assert has_element?(
+               view,
+               "#page-header a[href='https://example.com/tagine']",
+               "example.com"
+             )
+    end
+
     test "an empty recipe says so", %{conn: conn, scope: scope} do
       recipe = recipe_fixture(scope, %{name: "Toast"})
       {:ok, show, _html} = live(conn, ~p"/recipes/#{recipe}")

@@ -10,12 +10,14 @@ defmodule MealplanWeb.MealLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} section="meals">
-      <.link navigate={~p"/meals"} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> Meals
-      </.link>
-
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="meals" wide>
       <%= if @rename_form do %>
+        <.link
+          navigate={~p"/meals"}
+          class="inline-flex min-h-8 items-center gap-1.5 text-sm font-medium text-base-content/70 hover:text-base-content"
+        >
+          <.icon name="hero-arrow-left" class="size-4" /> Meals
+        </.link>
         <.form
           for={@rename_form}
           id="rename-meal-form"
@@ -23,7 +25,7 @@ defmodule MealplanWeb.MealLive.Show do
           phx-submit="rename"
           class="flex flex-wrap items-start gap-2"
         >
-          <div class="flex-1 min-w-48">
+          <div class="min-w-48 flex-1">
             <.input
               field={@rename_form[:name]}
               aria-label="Meal name"
@@ -35,204 +37,191 @@ defmodule MealplanWeb.MealLive.Show do
           <button type="button" class="btn btn-ghost" phx-click="cancel_rename">Cancel</button>
         </.form>
       <% else %>
-        <.header>
+        <.page_header back={~p"/meals"} back_label="Meals">
           <span id="meal-name">{@meal.name}</span>
-          <:subtitle>
+          <:meta>
             {recipe_summary(@meal.meal_recipes)}
             <span :if={@meal.archived_at} id="archived-badge" class="badge badge-ghost badge-sm ml-1">
               archived
             </span>
-          </:subtitle>
-          <:actions>
-            <%= if @meal.archived_at do %>
-              <.button id="restore-meal" phx-click="restore" variant="primary">
-                <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
-              </.button>
-            <% else %>
-              <div class="flex gap-2">
-                <.button id="rename-meal" phx-click="edit_name">
-                  <.icon name="hero-pencil-square" class="size-4" /> Rename
-                </.button>
-                <button
-                  type="button"
-                  id="delete-meal"
-                  class="btn btn-ghost text-error"
-                  phx-click="delete"
-                >
-                  <.icon name="hero-trash" class="size-4" /> Delete
-                </button>
-              </div>
-            <% end %>
+          </:meta>
+          <:actions :if={@meal.archived_at}>
+            <.button id="restore-meal" phx-click="restore" variant="primary">
+              <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
+            </.button>
           </:actions>
-        </.header>
+          <:actions :if={is_nil(@meal.archived_at)}>
+            <.button id="rename-meal" phx-click="edit_name">
+              <.icon name="hero-pencil-square" class="size-4" /> Rename
+            </.button>
+          </:actions>
+          <:menu :if={is_nil(@meal.archived_at)}>
+            <button
+              type="button"
+              id="delete-meal"
+              class="text-error"
+              phx-click={JS.push("delete") |> JS.remove_attribute("open", to: "#page-header-menu")}
+            >
+              <.icon name="hero-trash" class="size-4" /> Delete meal
+            </button>
+          </:menu>
+        </.page_header>
       <% end %>
 
-      <div
+      <.confirm_panel
         :if={@deleting}
         id="delete-meal-panel"
-        role="alert"
-        class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
+        title={if @deleting.archive?, do: "Archive this meal?", else: "Delete this meal?"}
+        confirm={if @deleting.archive?, do: "Archive meal", else: "Delete meal"}
+        confirm_id="confirm-delete-meal"
+        on_confirm="confirm_delete"
+        on_cancel="cancel_delete"
       >
-        <div class="space-y-1 text-sm">
-          <p :if={@deleting.upcoming != []}>
-            It's planned for {Enum.map_join(
-              @deleting.upcoming,
-              ", ",
-              &"#{Calendar.strftime(&1.date, "%a %-d %b")} #{String.downcase(&1.meal_slot.name)}"
-            )}; those will be removed from the plan.
-          </p>
-          <p :if={@deleting.archive?}>
-            Past plans used it, so it will be archived: hidden from lists and pickers, but kept in
-            history, and you can restore it.
-          </p>
-          <p :if={not @deleting.archive? and @deleting.upcoming == []}>It isn't in any plan.</p>
-        </div>
-        <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_delete">Cancel</button>
-          <button
-            type="button"
-            id="confirm-delete-meal"
-            class="btn btn-sm btn-error"
-            phx-click="confirm_delete"
-          >
-            {if @deleting.archive?, do: "Archive meal", else: "Delete meal"}
-          </button>
-        </div>
-      </div>
+        <p :if={@deleting.upcoming != []}>
+          It's planned on these days; they'll be removed from the plan:
+        </p>
+        <p :if={@deleting.archive?}>
+          Past plans used it, so it will be archived: hidden from lists and pickers, but kept in
+          history, and you can restore it.
+        </p>
+        <p :if={not @deleting.archive? and @deleting.upcoming == []}>It isn't in any plan.</p>
+        <:item :for={planned <- @deleting.upcoming}>
+          {Calendar.strftime(planned.date, "%a %-d %b")}, {String.downcase(planned.meal_slot.name)}
+        </:item>
+      </.confirm_panel>
 
       <section id="meal-slots" class="space-y-2">
-        <h2 class="text-sm font-medium text-base-content/70">Suits</h2>
-        <div class="flex flex-wrap gap-2">
-          <button
+        <h2 class="text-sm font-semibold">Suits</h2>
+        <.chip_group label="Suits">
+          <.chip
             :for={slot <- @all_slots}
-            type="button"
             id={"suits-#{slot.id}"}
-            class={[
-              "btn btn-sm rounded-full transition-colors",
-              if(tagged?(@meal, slot), do: "btn-primary", else: "btn-outline border-base-300")
-            ]}
-            aria-pressed={to_string(tagged?(@meal, slot))}
+            pressed={tagged?(@meal, slot)}
             phx-click="toggle_slot"
             phx-value-id={slot.id}
             disabled={not is_nil(@meal.archived_at)}
           >
-            <.icon :if={tagged?(@meal, slot)} name="hero-check" class="size-4" /> {slot.name}
-          </button>
-        </div>
-        <p :if={@meal.slots == []} class="text-xs text-base-content/60">
+            {slot.name}
+          </.chip>
+        </.chip_group>
+        <p :if={@meal.slots == []} class="text-sm text-base-content/70">
           Tag the slots this meal suits, and planning those slots lists it first.
         </p>
       </section>
 
-      <section class="space-y-3">
-        <h2 class="text-xl font-semibold">Recipes</h2>
-        <p
-          :if={@meal.meal_recipes == []}
-          id="no-recipes"
-          class="rounded-box border border-dashed border-base-300 px-4 py-6 text-center text-base-content/60"
-        >
-          No recipes. That's fine for meals like "Eat out"; add some below if you'll cook.
-        </p>
-        <ol
-          :if={@meal.meal_recipes != []}
-          id="meal-recipes"
-          class="divide-y divide-base-300 rounded-box border border-base-300"
-        >
-          <li
-            :for={{meal_recipe, index} <- Enum.with_index(@meal.meal_recipes)}
-            id={"meal-recipe-#{meal_recipe.recipe_id}"}
-            class="flex items-center gap-2 px-4 py-2 min-h-12"
+      <div class="grid gap-8 lg:grid-cols-2 lg:items-start">
+        <section class="space-y-3">
+          <h2 class="text-xl font-semibold">Recipes in this meal</h2>
+          <.empty_state :if={@meal.meal_recipes == []} id="no-recipes">
+            No recipes. That's fine for meals like "Eat out"; add some if you'll cook.
+          </.empty_state>
+          <.row_list
+            :if={@meal.meal_recipes != []}
+            id="meal-recipes"
+            phx-hook="Sortable"
+            data-event="reorder_recipes"
+            data-sortable={to_string(is_nil(@meal.archived_at))}
           >
-            <.link
+            <.list_row
+              :for={{meal_recipe, index} <- Enum.with_index(@meal.meal_recipes)}
+              id={"meal-recipe-#{meal_recipe.recipe_id}"}
+              sortable_id={if is_nil(@meal.archived_at), do: meal_recipe.recipe_id}
               navigate={~p"/recipes/#{meal_recipe.recipe}"}
-              class="min-w-0 flex-1 hover:underline"
+              title={meal_recipe.recipe.name}
             >
-              <span class="block truncate font-medium">{meal_recipe.recipe.name}</span>
-              <span class="text-sm text-base-content/60">Serves {meal_recipe.recipe.servings}</span>
-            </.link>
-            <span :if={is_nil(@meal.archived_at)} class="flex shrink-0 items-center">
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm btn-square"
-                phx-click="move"
-                phx-value-id={meal_recipe.recipe_id}
-                phx-value-direction="up"
-                disabled={index == 0}
-                aria-label={"Move #{meal_recipe.recipe.name} up"}
-              >
-                <.icon name="hero-chevron-up" class="size-4" />
-              </button>
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm btn-square"
-                phx-click="move"
-                phx-value-id={meal_recipe.recipe_id}
-                phx-value-direction="down"
-                disabled={index == length(@meal.meal_recipes) - 1}
-                aria-label={"Move #{meal_recipe.recipe.name} down"}
-              >
-                <.icon name="hero-chevron-down" class="size-4" />
-              </button>
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm text-error"
-                phx-click="remove"
-                phx-value-id={meal_recipe.recipe_id}
-              >
-                Remove
-              </button>
-            </span>
-          </li>
-        </ol>
-      </section>
+              {meal_recipe.recipe.name}
+              <:meta>Serves {meal_recipe.recipe.servings}</:meta>
+              <:lead :if={is_nil(@meal.archived_at)}>
+                <.icon
+                  name="hero-bars-2"
+                  class="hidden size-5 cursor-grab text-base-content/40 sm:block"
+                />
+              </:lead>
+              <:actions :if={is_nil(@meal.archived_at)}>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-square"
+                  phx-click="move"
+                  phx-value-id={meal_recipe.recipe_id}
+                  phx-value-direction="up"
+                  disabled={index == 0}
+                  aria-label={"Move #{meal_recipe.recipe.name} up"}
+                >
+                  <.icon name="hero-chevron-up" class="size-5" />
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-square"
+                  phx-click="move"
+                  phx-value-id={meal_recipe.recipe_id}
+                  phx-value-direction="down"
+                  disabled={index == length(@meal.meal_recipes) - 1}
+                  aria-label={"Move #{meal_recipe.recipe.name} down"}
+                >
+                  <.icon name="hero-chevron-down" class="size-5" />
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-square text-error"
+                  phx-click="remove"
+                  phx-value-id={meal_recipe.recipe_id}
+                  aria-label={"Remove #{meal_recipe.recipe.name}"}
+                >
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </:actions>
+            </.list_row>
+          </.row_list>
+        </section>
 
-      <section :if={is_nil(@meal.archived_at)} class="space-y-3 pt-2">
-        <h2 class="text-xl font-semibold">Add a recipe</h2>
-        <.form for={@picker_form} id="recipe-picker" phx-change="find" phx-submit="find">
-          <label class="input w-full">
-            <.icon name="hero-magnifying-glass" class="size-4 opacity-60" />
-            <input
-              type="search"
-              name="q"
-              value={@picker_form[:q].value}
-              placeholder="Search your recipes"
-              autocomplete="off"
-              phx-debounce="250"
-              aria-label="Search recipes to add"
-              class="grow"
-            />
-          </label>
-        </.form>
-        <ul
-          :if={@candidates != []}
-          id="recipe-candidates"
-          class="divide-y divide-base-300 rounded-box border border-base-300"
-        >
-          <li
-            :for={recipe <- @candidates}
-            id={"candidate-#{recipe.id}"}
-            class="flex items-center justify-between gap-3 px-4 py-2"
-          >
-            <span class="min-w-0 truncate">{recipe.name}</span>
-            <button
-              type="button"
-              class="btn btn-sm btn-primary btn-soft"
-              phx-click="add"
-              phx-value-id={recipe.id}
+        <section :if={is_nil(@meal.archived_at)} class="space-y-3">
+          <h2 class="text-xl font-semibold">Add a recipe</h2>
+          <.form for={@picker_form} id="recipe-picker" phx-change="find" phx-submit="find">
+            <label class="input w-full">
+              <.icon name="hero-magnifying-glass" class="size-4 opacity-60" />
+              <input
+                type="search"
+                name="q"
+                value={@picker_form[:q].value}
+                placeholder="Search your recipes"
+                autocomplete="off"
+                phx-debounce="250"
+                aria-label="Search recipes to add"
+                class="grow"
+              />
+            </label>
+          </.form>
+          <.row_list :if={@candidates != []} id="recipe-candidates">
+            <.list_row
+              :for={recipe <- @candidates}
+              id={"candidate-#{recipe.id}"}
+              title={recipe.name}
             >
-              <.icon name="hero-plus" class="size-4" /> Add
-            </button>
-          </li>
-        </ul>
-        <p :if={@candidates == []} id="no-candidates" class="text-sm text-base-content/60">
-          <%= if @picker_query == "" do %>
-            No more recipes to add.
-          <% else %>
-            No recipes match “{@picker_query}”.
-          <% end %>
-          <.link navigate={~p"/recipes/new"} class="link">Write a new recipe</.link>
-        </p>
-      </section>
+              {recipe.name}
+              <:meta>Serves {recipe.servings}</:meta>
+              <:actions>
+                <button
+                  type="button"
+                  class="btn btn-outline btn-sm"
+                  phx-click="add"
+                  phx-value-id={recipe.id}
+                  aria-label={"Add #{recipe.name}"}
+                >
+                  <.icon name="hero-plus" class="size-4" /> Add
+                </button>
+              </:actions>
+            </.list_row>
+          </.row_list>
+          <p :if={@candidates == []} id="no-candidates" class="text-sm text-base-content/70">
+            <%= if @picker_query == "" do %>
+              No more recipes to add.
+            <% else %>
+              No recipes match “{@picker_query}”.
+            <% end %>
+            <.link navigate={~p"/recipes/new"} class="link">Write a new recipe</.link>
+          </p>
+        </section>
+      </div>
     </Layouts.app>
     """
   end
@@ -345,6 +334,13 @@ defmodule MealplanWeb.MealLive.Show do
     socket.assigns.current_scope
     |> Meals.set_slots(meal.id, slot_ids)
     |> after_change(socket, "Couldn't change the slots.")
+  end
+
+  # Dragged into a new order (wider screens).
+  def handle_event("reorder_recipes", %{"ids" => ids}, socket) when is_list(ids) do
+    socket.assigns.current_scope
+    |> Meals.reorder_recipes(socket.assigns.meal.id, ids)
+    |> after_change(socket, "Couldn't reorder: the meal changed meanwhile.")
   end
 
   def handle_event("move", %{"id" => recipe_id, "direction" => direction}, socket) do

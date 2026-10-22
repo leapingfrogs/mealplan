@@ -261,6 +261,25 @@ defmodule Mealplan.Meals do
     if length(found) == length(Enum.uniq(slot_ids)), do: {:ok, found}, else: {:error, :not_found}
   end
 
+  @doc """
+  Puts a meal's recipes in the order given (from dragging them). Only a
+  reorder: the ids must be exactly the meal's current recipes, so an order
+  sent from a page that's out of date (someone added or removed a recipe
+  meanwhile) is refused rather than dropping or re-adding recipes.
+  """
+  def reorder_recipes(%Scope{} = scope, meal_id, recipe_ids) when is_list(recipe_ids) do
+    with {:ok, meal} <- fetch_meal(scope, meal_id) do
+      current = meal |> Repo.preload(:meal_recipes) |> Map.fetch!(:meal_recipes)
+
+      if Enum.sort(recipe_ids) == current |> Enum.map(& &1.recipe_id) |> Enum.sort() do
+        :ok = set_positions(recipe_ids, meal)
+        broadcast({:ok, meal}, scope)
+      else
+        {:error, :stale}
+      end
+    end
+  end
+
   @doc "Moves a recipe one place earlier or later in a meal."
   def move_recipe(%Scope{} = scope, meal_id, recipe_id, direction)
       when direction in [:up, :down] do

@@ -112,7 +112,7 @@ defmodule MealplanWeb.Layouts do
 
         <main class={[
           "flex-1 px-4 pt-6 sm:px-6 lg:px-10 lg:py-10",
-          if(@household?, do: "pb-28 lg:pb-10", else: "pb-10")
+          if(@household?, do: "pb-[calc(var(--tab-bar)+2.5rem)] lg:pb-10", else: "pb-10")
         ]}>
           <div class={[
             "mx-auto space-y-4",
@@ -128,7 +128,7 @@ defmodule MealplanWeb.Layouts do
       :if={@household?}
       id="tab-bar"
       aria-label="Sections"
-      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-base-300 bg-base-100/95 px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden"
+      class="fixed inset-x-0 bottom-0 z-30 grid h-(--tab-bar) grid-cols-5 border-t border-base-300 bg-base-100/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       <.link
         :for={item <- @sections}
@@ -136,7 +136,7 @@ defmodule MealplanWeb.Layouts do
         id={"tab-#{item.id}"}
         aria-current={item.id == @section && "page"}
         class={[
-          "flex min-h-13 flex-col items-center justify-center gap-0.5 text-xs",
+          "flex flex-col items-center justify-center gap-0.5 text-xs",
           if(item.id == @section,
             do: "font-semibold text-primary",
             else: "font-medium text-base-content/70"
