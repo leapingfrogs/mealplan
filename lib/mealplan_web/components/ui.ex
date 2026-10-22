@@ -61,12 +61,14 @@ defmodule MealplanWeb.UI do
           </h1>
           <p :if={@meta != []} class="text-sm text-base-content/70">{render_slot(@meta)}</p>
         </div>
+        <%!-- On phones the menu hangs from the actions row's right edge, so it
+             stays on screen wherever the ⋯ button wraps to. --%>
         <div
           :if={@actions != [] or @menu != []}
-          class="flex flex-wrap items-center gap-2 lg:flex-none lg:justify-end"
+          class="relative flex flex-wrap items-center gap-2 lg:flex-none lg:justify-end"
         >
           {render_slot(@actions)}
-          <details :if={@menu != []} id={"#{@id}-menu"} class="dropdown lg:dropdown-end">
+          <details :if={@menu != []} id={"#{@id}-menu"} class="dropdown dropdown-end max-lg:static">
             <summary class="btn btn-ghost btn-square list-none" aria-label={gettext("More actions")}>
               <.icon name="hero-ellipsis-horizontal" class="size-5" />
             </summary>
