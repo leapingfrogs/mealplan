@@ -16,7 +16,7 @@ defmodule MealplanWeb.HouseholdLive.Onboarding do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-md space-y-8">
+      <div class="mx-auto max-w-form space-y-8">
         <section :if={@invitations != []} id="invitations" class="space-y-3">
           <.header>
             You've been invited

@@ -326,9 +326,12 @@ defmodule MealplanWeb.CoreComponents do
 
   def header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
-      <div>
-        <h1 class="text-lg font-semibold leading-8">
+    <header class={[
+      @actions != [] && "flex flex-wrap items-start justify-between gap-x-6 gap-y-3",
+      "pb-4"
+    ]}>
+      <div class="min-w-0 flex-[1_1_16rem]">
+        <h1 class="text-2xl font-bold leading-tight break-words lg:text-3xl">
           {render_slot(@inner_block)}
         </h1>
         <p :if={@subtitle != []} class="text-sm text-base-content/70">

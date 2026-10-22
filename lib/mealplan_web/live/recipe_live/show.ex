@@ -97,19 +97,19 @@ defmodule MealplanWeb.RecipeLive.Show do
       </div>
 
       <section :if={@parsed.ingredients != []} class="space-y-2">
-        <h2 class="text-lg font-semibold">Ingredients</h2>
+        <h2 class="text-xl font-semibold">Ingredients</h2>
         <.ingredient_list id="ingredients" ingredients={@parsed.ingredients} />
       </section>
 
       <section :if={@parsed.cookware != []} class="space-y-2">
-        <h2 class="text-lg font-semibold">You'll need</h2>
+        <h2 class="text-xl font-semibold">You'll need</h2>
         <p id="cookware" class="text-base-content/80">
           {@parsed.cookware |> Enum.map(& &1.name) |> Enum.uniq() |> Enum.join(", ")}
         </p>
       </section>
 
       <section :if={steps?(@parsed)} class="space-y-2">
-        <h2 class="text-lg font-semibold">Method</h2>
+        <h2 class="text-xl font-semibold">Method</h2>
         <.method id="method" recipe={@parsed} />
       </section>
     </Layouts.app>

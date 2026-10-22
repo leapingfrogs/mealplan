@@ -52,11 +52,11 @@ defmodule MealplanWeb.Layouts do
         :if={@current_scope && @current_scope.household}
         class="order-last flex w-full gap-1 sm:order-none sm:mr-2 sm:w-auto sm:flex-none"
       >
-        <.link navigate={~p"/plan"} id="nav-plan" class="btn btn-ghost btn-sm">Plan</.link>
-        <.link navigate={~p"/recipes"} id="nav-recipes" class="btn btn-ghost btn-sm">Recipes</.link>
-        <.link navigate={~p"/meals"} id="nav-meals" class="btn btn-ghost btn-sm">Meals</.link>
-        <.link navigate={~p"/shopping"} id="nav-shopping" class="btn btn-ghost btn-sm">Shopping</.link>
-        <.link navigate={~p"/household"} id="nav-household" class="btn btn-ghost btn-sm">
+        <.link navigate={~p"/plan"} id="nav-plan" class="btn btn-ghost btn-sm px-2.5">Plan</.link>
+        <.link navigate={~p"/recipes"} id="nav-recipes" class="btn btn-ghost btn-sm px-2.5">Recipes</.link>
+        <.link navigate={~p"/meals"} id="nav-meals" class="btn btn-ghost btn-sm px-2.5">Meals</.link>
+        <.link navigate={~p"/shopping"} id="nav-shopping" class="btn btn-ghost btn-sm px-2.5">Shopping</.link>
+        <.link navigate={~p"/household"} id="nav-household" class="btn btn-ghost btn-sm px-2.5">
           Household
         </.link>
       </nav>
@@ -66,7 +66,10 @@ defmodule MealplanWeb.Layouts do
     </header>
 
     <main class="px-4 py-10 sm:px-6 lg:px-8">
-      <div class={["mx-auto space-y-4", if(@wide, do: "max-w-2xl lg:max-w-7xl", else: "max-w-2xl")]}>
+      <div class={[
+        "mx-auto space-y-4",
+        if(@wide, do: "max-w-content lg:max-w-wide", else: "max-w-content")
+      ]}>
         {render_slot(@inner_block)}
       </div>
     </main>

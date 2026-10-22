@@ -93,7 +93,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
 
       <section id="meal-slots-section" class="space-y-3 pt-4">
         <div class="flex items-center justify-between gap-2">
-          <h2 class="text-lg font-semibold">Meal slots</h2>
+          <h2 class="text-xl font-semibold">Meal slots</h2>
           <button
             :if={@owner? and @missing_defaults != []}
             type="button"
@@ -295,7 +295,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       </section>
 
       <section class="space-y-3 pt-4">
-        <h2 class="text-lg font-semibold">Members</h2>
+        <h2 class="text-xl font-semibold">Members</h2>
         <ul id="members" class="divide-y divide-base-300 rounded-box border border-base-300">
           <li
             :for={member <- @members}
@@ -349,7 +349,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       </section>
 
       <section :if={@owner?} class="space-y-3 pt-4">
-        <h2 class="text-lg font-semibold">Invite someone</h2>
+        <h2 class="text-xl font-semibold">Invite someone</h2>
         <.form
           for={@invite_form}
           id="invite-form"
@@ -402,7 +402,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       </section>
 
       <section :if={@my_invitations != []} id="my-invitations" class="space-y-3 pt-4">
-        <h2 class="text-lg font-semibold">Invitations for you</h2>
+        <h2 class="text-xl font-semibold">Invitations for you</h2>
         <p class="text-sm text-base-content/60">
           To join another household, you'll need to leave this one first.
         </p>
@@ -426,7 +426,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       </section>
 
       <section :if={@owner?} id="transfer" class="space-y-3 pt-4">
-        <h2 class="text-lg font-semibold">Import and export</h2>
+        <h2 class="text-xl font-semibold">Import and export</h2>
         <p class="text-sm text-base-content/60">
           Download your recipes and meals as Cooklang files, to keep a copy or use them in
           other Cooklang apps, or import recipes and meals from such files.
@@ -445,7 +445,7 @@ defmodule MealplanWeb.HouseholdLive.Settings do
       </section>
 
       <section :if={@owner?} id="delete-household" class="space-y-3 pt-8">
-        <h2 class="text-lg font-semibold text-error">Delete household</h2>
+        <h2 class="text-xl font-semibold text-error">Delete household</h2>
         <p class="text-sm text-base-content/60">
           Deletes all of the household's recipes, meals and plans, and removes every member.
           This can't be undone. Type <strong>{@current_scope.household.name}</strong> to confirm.
