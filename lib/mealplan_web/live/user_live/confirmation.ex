@@ -8,15 +8,19 @@ defmodule MealplanWeb.UserLive.Confirmation do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-form">
-        <div class="text-center">
-          <.header>Welcome {@user.email}</.header>
+      <.auth_card title={if(@user.confirmed_at, do: "Log in", else: "Welcome to Mealplan")}>
+        <div>
+          <p class="text-sm text-base-content/70">
+            {if(@user.confirmed_at, do: "Logging in as", else: "Your account is")}
+          </p>
+          <p id="login-email" class="break-all font-medium">{@user.email}</p>
         </div>
 
         <.form
           :if={!@user.confirmed_at}
           for={@form}
           id="confirmation_form"
+          class="space-y-2"
           phx-mounted={JS.focus_first()}
           phx-submit="submit"
           action={~p"/users/log-in?_action=confirmed"}
@@ -26,13 +30,13 @@ defmodule MealplanWeb.UserLive.Confirmation do
           <.button
             name={@form[:remember_me].name}
             value="true"
-            phx-disable-with="Confirming..."
+            phx-disable-with="Confirming…"
             variant="primary"
             class="w-full"
           >
             Confirm and stay logged in
           </.button>
-          <.button phx-disable-with="Confirming..." class="w-full mt-2">
+          <.button phx-disable-with="Confirming…" class="w-full">
             Confirm and log in only this time
           </.button>
         </.form>
@@ -41,6 +45,7 @@ defmodule MealplanWeb.UserLive.Confirmation do
           :if={@user.confirmed_at}
           for={@form}
           id="login_form"
+          class="space-y-2"
           phx-submit="submit"
           phx-mounted={JS.focus_first()}
           action={~p"/users/log-in"}
@@ -48,29 +53,29 @@ defmodule MealplanWeb.UserLive.Confirmation do
         >
           <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
           <%= if @current_scope do %>
-            <.button phx-disable-with="Logging in..." variant="primary" class="w-full">
+            <.button phx-disable-with="Logging in…" variant="primary" class="w-full">
               Log in
             </.button>
           <% else %>
             <.button
               name={@form[:remember_me].name}
               value="true"
-              phx-disable-with="Logging in..."
+              phx-disable-with="Logging in…"
               variant="primary"
               class="w-full"
             >
               Keep me logged in on this device
             </.button>
-            <.button phx-disable-with="Logging in..." class="w-full mt-2">
+            <.button phx-disable-with="Logging in…" class="w-full">
               Log me in only this time
             </.button>
           <% end %>
         </.form>
 
-        <p :if={!@user.confirmed_at} class="alert alert-outline mt-8">
-          Tip: If you prefer passwords, you can enable them in the user settings.
-        </p>
-      </div>
+        <:footer :if={!@user.confirmed_at}>
+          Prefer a password? You can set one in your account settings once you're in.
+        </:footer>
+      </.auth_card>
     </Layouts.app>
     """
   end

@@ -10,7 +10,7 @@ defmodule MealplanWeb.UserLive.LoginTest do
 
       assert html =~ "Log in"
       assert html =~ "invite-only"
-      assert html =~ "Log in with email"
+      assert html =~ "Email me a login link"
     end
   end
 
@@ -46,10 +46,25 @@ defmodule MealplanWeb.UserLive.LoginTest do
   end
 
   describe "user login - password" do
+    test "one email field; a password is offered instead of the link", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+      assert has_element?(lv, "#login_form_magic")
+      refute has_element?(lv, "input[type=password]")
+
+      lv |> form("#login_form_magic", user: %{email: "me@example.com"}) |> render_change()
+      lv |> element("#toggle-password") |> render_click()
+
+      assert has_element?(lv, "#login_form_password input[type=email][value='me@example.com']")
+      assert has_element?(lv, "#login_form_password input[type=password]")
+      assert has_element?(lv, "#user_remember_me[checked]")
+      assert lv |> element("#toggle-password") |> render() =~ "Email me a link instead"
+    end
+
     test "redirects if user logs in with valid credentials", %{conn: conn} do
       user = set_password(user_fixture())
 
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+      lv |> element("#toggle-password") |> render_click()
 
       form =
         form(lv, "#login_form_password",
@@ -65,6 +80,7 @@ defmodule MealplanWeb.UserLive.LoginTest do
       conn: conn
     } do
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+      lv |> element("#toggle-password") |> render_click()
 
       form =
         form(lv, "#login_form_password", user: %{email: "test@email.com", password: "123456"})
@@ -102,10 +118,10 @@ defmodule MealplanWeb.UserLive.LoginTest do
 
       assert html =~ "You need to reauthenticate"
       refute html =~ "Register"
-      assert html =~ "Log in with email"
+      assert html =~ "Email me a login link"
 
       assert html =~
-               ~s(<input type="email" name="user[email]" id="login_form_magic_email" value="#{user.email}")
+               ~s(name="user[email]" id="user_email" value="#{user.email}")
     end
   end
 end
