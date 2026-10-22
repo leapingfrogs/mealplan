@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/leapingfrogs/mealplan/compare/v0.6.0...v0.6.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* open the home screen app without Safari's controls ([#73](https://github.com/leapingfrogs/mealplan/issues/73)) ([fe5d0e6](https://github.com/leapingfrogs/mealplan/commit/fe5d0e6e08f67ea7dc42bd44235598279df9d613))
+
 ## [0.6.0](https://github.com/leapingfrogs/mealplan/compare/v0.5.0...v0.6.0) (2026-10-22)
 
 
