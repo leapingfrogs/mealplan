@@ -3,7 +3,10 @@
 Meal planning and recipe management for the family, built with Elixir and
 Phoenix LiveView. Self-hosted on a TrueNAS appliance; accounts are invite-only.
 
-**Status:** Iteration 4, shopping lists. A household (owner plus invited
+**Status:** Iteration 5, a layout refresh: every page is built from shared
+components, with a tab bar on phones, a sidebar from 1024 px, light and dark
+themes and layouts that use the room on wide screens
+([design](docs/design/iteration-5.md)). A household (owner plus invited
 members) keeps recipes in [Cooklang](https://cooklang.org), builds meals from
 them, and plans the week on the phone: meal slots, servings, skips, leftovers
 (up to 14 days, so weekend batch cooking feeds the next week) and copying last
@@ -14,8 +17,8 @@ slots they suit (Breakfast, Lunch, Dinner...): planning a slot lists its
 meals first, planning tags meals as you go, and tags travel through export
 and import. A shared shopping list follows the plan for a range of days:
 ingredients scaled to what will be cooked (leftovers included) and merged,
-staples left off, items added by hand, and ticks every member sees live.
-Built on iteration 0:
+staples left off, items added by hand, and ticks every member sees live
+(iteration 4). Built on iteration 0:
 invite-only magic-link login, admin error dashboard, a hardened production
 stack with backups, CI, releases and one-command deploys. Ideas for later
 are in each iteration design's "Out" column.
