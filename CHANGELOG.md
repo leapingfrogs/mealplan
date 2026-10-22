@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/leapingfrogs/mealplan/compare/v0.6.1...v0.6.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* serve the digested manifest and icons so the home screen app stays in scope ([#75](https://github.com/leapingfrogs/mealplan/issues/75)) ([648e7b1](https://github.com/leapingfrogs/mealplan/commit/648e7b1bc4516543fe4213fa935c5e3f19bee0ad))
+
 ## [0.6.1](https://github.com/leapingfrogs/mealplan/compare/v0.6.0...v0.6.1) (2026-10-22)
 
 
