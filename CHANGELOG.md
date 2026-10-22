@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.6.0](https://github.com/leapingfrogs/mealplan/compare/v0.5.0...v0.6.0) (2026-10-22)
+
+
+### Features
+
+* add a favicon and an iPhone home screen icon ([#59](https://github.com/leapingfrogs/mealplan/issues/59)) ([74928d1](https://github.com/leapingfrogs/mealplan/commit/74928d1b09ab4779d1a8e63267f407bf27aa38c5))
+* add the app shell with a tab bar on phones and a sidebar on desktop ([#63](https://github.com/leapingfrogs/mealplan/issues/63)) ([4681083](https://github.com/leapingfrogs/mealplan/commit/468108310751e7966eb8b9b960d338f1f540f6f9))
+* add the shared UI components the pages will build from ([#64](https://github.com/leapingfrogs/mealplan/issues/64)) ([b0df13d](https://github.com/leapingfrogs/mealplan/commit/b0df13ddd42170e0f3096b61bbe9e903818e4e8e))
+* apply the UI kit's colours, type and widths ([#62](https://github.com/leapingfrogs/mealplan/issues/62)) ([eaa36e6](https://github.com/leapingfrogs/mealplan/commit/eaa36e61a081d0e79cb421e195c3288c2d675221))
+* lay out the household, import, account and onboarding pages ([#70](https://github.com/leapingfrogs/mealplan/issues/70)) ([625a857](https://github.com/leapingfrogs/mealplan/commit/625a8572a36bf9669850fb9a1af342bd1bbe86cf))
+* lay the shopping list out for phones and wide screens ([#69](https://github.com/leapingfrogs/mealplan/issues/69)) ([c92b8b9](https://github.com/leapingfrogs/mealplan/commit/c92b8b98357a344083093e4125a8b596c6474095))
+* lay the week plan out for phones, tablets and wide screens ([#68](https://github.com/leapingfrogs/mealplan/issues/68)) ([7521129](https://github.com/leapingfrogs/mealplan/commit/752112989683be3e00dd30ebd81c0a88c647c79f))
+* rebuild the recipe and meal pages from the shared components ([#67](https://github.com/leapingfrogs/mealplan/issues/67)) ([d951ea2](https://github.com/leapingfrogs/mealplan/commit/d951ea29aef83f8c5e268d4d947605d30f724b8a))
+* welcome visitors on the login page without an error ([#71](https://github.com/leapingfrogs/mealplan/issues/71)) ([2498dd8](https://github.com/leapingfrogs/mealplan/commit/2498dd864ab08c6372cb041642c0ff8530f3d80a))
+
+
+### Bug Fixes
+
+* correct five layout defects found in the design audit ([#61](https://github.com/leapingfrogs/mealplan/issues/61)) ([143b7f3](https://github.com/leapingfrogs/mealplan/commit/143b7f38ec9babe8c849965e8ad61a50a46604a4))
+* list recipes whose names differ only in case in a fixed order ([#66](https://github.com/leapingfrogs/mealplan/issues/66)) ([6fe8136](https://github.com/leapingfrogs/mealplan/commit/6fe8136d75ea8f332e23c4e7de4e43516e1a685e))
+
 ## [0.5.0](https://github.com/leapingfrogs/mealplan/compare/v0.4.0...v0.5.0) (2026-10-20)
 
 
