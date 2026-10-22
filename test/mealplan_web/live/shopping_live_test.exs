@@ -68,12 +68,12 @@ defmodule MealplanWeb.ShoppingLiveTest do
     view |> element(line("kidney bean") <> " button[phx-click=make_staple]") |> render_click()
     refute has_element?(view, "#to-buy " <> line("kidney bean"))
     assert has_element?(view, "#staples", "Staples, not listed (1)")
-    assert has_element?(view, "#staples ul.hidden")
+    assert has_element?(view, "#staples-body.hidden")
 
     view |> element("#staples > button") |> render_click()
-    refute has_element?(view, "#staples ul.hidden")
+    refute has_element?(view, "#staples-body.hidden")
     view |> element("#staples button[phx-click=need_staple]") |> render_click()
-    assert has_element?(view, "#to-buy li[id^=item-]", "kidney beans")
+    assert has_element?(view, "#added li[id^=item-]", "kidney beans")
   end
 
   test "manual items are added, ticked and removed", %{conn: conn} do
@@ -82,14 +82,17 @@ defmodule MealplanWeb.ShoppingLiveTest do
     view |> form("#item-form", item: %{text: ""}) |> render_submit()
     assert has_element?(view, "#item-form", "can't be blank")
 
+    view |> form("#item-form", item: %{text: "Kitchen roll"}) |> render_change()
+    assert has_element?(view, "#item-form input[value='Kitchen roll']")
     view |> form("#item-form", item: %{text: "Kitchen roll"}) |> render_submit()
-    assert has_element?(view, "#to-buy li[id^=item-]", "Kitchen roll")
+    assert has_element?(view, "#added li[id^=item-]", "Kitchen roll")
+    refute has_element?(view, "#item-form input[value='Kitchen roll']")
 
-    view |> element("#to-buy li[id^=item-] button[phx-click=tick_item]") |> render_click()
+    view |> element("#added li[id^=item-] button[phx-click=tick_item]") |> render_click()
     assert has_element?(view, "#ticked li[id^=item-]", "Kitchen roll")
 
     view |> element("#ticked li[id^=item-] button[phx-click=tick_item]") |> render_click()
-    view |> element("#to-buy li[id^=item-] button[phx-click=remove_item]") |> render_click()
+    view |> element("#added li[id^=item-] button[phx-click=remove_item]") |> render_click()
     refute has_element?(view, "li[id^=item-]")
   end
 
@@ -99,15 +102,15 @@ defmodule MealplanWeb.ShoppingLiveTest do
     for key <- ["onion", "olive oil", "salt"],
         do: view |> element(line(key) <> " button[phx-click=tick]") |> render_click()
 
-    refute has_element?(view, "#ticked ul.hidden")
+    refute has_element?(view, "#ticked-body.hidden")
     view |> element(line("kidney bean") <> " button[phx-click=tick]") |> render_click()
-    assert has_element?(view, "#ticked ul.hidden")
+    assert has_element?(view, "#ticked-body.hidden")
     assert has_element?(view, "#nothing-to-buy", "All done.")
 
     view |> element("#ticked > button") |> render_click()
-    refute has_element?(view, "#ticked ul.hidden")
+    refute has_element?(view, "#ticked-body.hidden")
     view |> element("#ticked > button") |> render_click()
-    assert has_element?(view, "#ticked ul.hidden")
+    assert has_element?(view, "#ticked-body.hidden")
   end
 
   test "the range changes by preset or dates, and says when nothing's planned",
@@ -182,7 +185,7 @@ defmodule MealplanWeb.ShoppingLiveTest do
   describe "staples page" do
     test "adds and removes staples, which leave the list", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/shopping/staples")
-      assert has_element?(view, "#staple-list", "No staples yet.")
+      assert has_element?(view, "#no-staples")
 
       view |> form("#staple-form", staple: %{name: ""}) |> render_change()
       assert has_element?(view, "#staple-form", "can't be blank")
@@ -197,7 +200,7 @@ defmodule MealplanWeb.ShoppingLiveTest do
       assert has_element?(list, "#staples", "salt")
 
       view |> element("#staple-list button[aria-label='Remove Salt']") |> render_click()
-      assert has_element?(view, "#staple-list", "No staples yet.")
+      assert has_element?(view, "#no-staples")
       assert has_element?(list, "#to-buy " <> line("salt"))
     end
   end
