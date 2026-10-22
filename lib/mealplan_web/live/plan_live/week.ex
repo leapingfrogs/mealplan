@@ -17,7 +17,7 @@ defmodule MealplanWeb.PlanLive.Week do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} wide>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="plan" wide>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 id="week-title" class="text-lg font-semibold leading-8">{week_title(@week, @today)}</h1>

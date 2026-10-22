@@ -64,7 +64,7 @@ defmodule MealplanWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="toast toast-top toast-end z-50"
+      class="toast toast-end toast-bottom z-50 mb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:toast-top lg:mb-0"
       {@rest}
     >
       <div class={[

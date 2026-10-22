@@ -97,7 +97,9 @@ The design is in [docs/design/iteration-1.md](docs/design/iteration-1.md) (and
   daisyUI themes in `assets/css/app.css` (the Mealplan UI kit); page widths are
   `max-w-form`, `max-w-content` or `max-w-wide`; text is never below `text-xs`
   (13 px). Fonts (Public Sans, Bricolage Grotesque for headings) are
-  self-hosted in `priv/static/fonts`: the CSP allows no font hosts. Sheets and confirmation
+  self-hosted in `priv/static/fonts`: the CSP allows no font hosts. Pages pass
+  `section` to `<Layouts.app>` (plan, recipes, meals, shopping, household or
+  account) so the tab bar and sidebar mark where you are. Sheets and confirmation
   panels follow the week plan's patterns; avoid DaisyUI `alert` for panels
   with controls (it lays them out side by side).
 

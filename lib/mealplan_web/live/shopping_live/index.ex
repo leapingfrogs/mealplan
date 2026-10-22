@@ -13,7 +13,7 @@ defmodule MealplanWeb.ShoppingLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="shopping">
       <.header>
         Shopping
         <:subtitle>
