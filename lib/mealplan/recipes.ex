@@ -37,7 +37,7 @@ defmodule Mealplan.Recipes do
     from(r in Recipe,
       as: :recipe,
       where: r.household_id == ^household_id and is_nil(r.archived_at),
-      order_by: [asc: fragment("lower(?)", r.name), asc: r.inserted_at],
+      order_by: ^by_name(),
       select: %{r | ingredient_count: subquery(ingredient_count)}
     )
     |> search(String.trim(search || ""))
@@ -201,12 +201,23 @@ defmodule Mealplan.Recipes do
       )
   end
 
+  # By name ignoring case; names that differ only in case (Soup, soup) in
+  # byte order, so exports always number them the same way.
+  defp by_name do
+    [
+      asc: dynamic([r], fragment("lower(?)", r.name)),
+      asc: dynamic([r], fragment("? COLLATE \"C\"", r.name)),
+      asc: dynamic([r], r.inserted_at),
+      asc: dynamic([r], r.id)
+    ]
+  end
+
   @doc "Lists the household's archived recipes by name."
   def list_archived_recipes(%Scope{household: %Household{id: household_id}}) do
     Repo.all(
       from r in Recipe,
         where: r.household_id == ^household_id and not is_nil(r.archived_at),
-        order_by: fragment("lower(?)", r.name)
+        order_by: ^by_name()
     )
   end
 
