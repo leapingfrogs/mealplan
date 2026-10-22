@@ -193,3 +193,9 @@ h1, h2, h3 {
 .fieldset {
   padding-block: 0;
 }
+
+/* The phone tab bar's height, including the iPhone home indicator; sticky
+   bars and toasts sit just above it. */
+:root {
+  --tab-bar: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+}

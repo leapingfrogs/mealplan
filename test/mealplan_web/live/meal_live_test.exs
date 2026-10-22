@@ -64,6 +64,32 @@ defmodule MealplanWeb.MealLiveTest do
   end
 
   describe "a meal" do
+    test "its recipes can be dragged into a new order, unless the meal changed meanwhile",
+         %{conn: conn, scope: scope, pasta: pasta, salad: salad} do
+      meal = meal_fixture(scope, %{name: "Italian"}, [pasta, salad])
+      {:ok, view, _html} = live(conn, ~p"/meals/#{meal}")
+
+      assert has_element?(view, "#meal-recipes[phx-hook=Sortable][data-sortable=true]")
+      assert has_element?(view, "#meal-recipe-#{pasta.id}[draggable=true][data-id='#{pasta.id}']")
+
+      view
+      |> element("#meal-recipes")
+      |> render_hook("reorder_recipes", %{ids: [salad.id, pasta.id]})
+
+      names =
+        scope
+        |> Meals.get_meal!(meal.id)
+        |> Map.fetch!(:meal_recipes)
+        |> Enum.map(& &1.recipe.name)
+
+      assert names == ["Green salad", "Pasta"]
+
+      html =
+        view |> element("#meal-recipes") |> render_hook("reorder_recipes", %{ids: [pasta.id]})
+
+      assert html =~ "the meal changed meanwhile"
+    end
+
     test "tags the slots it suits, shown in the list", %{conn: conn, scope: scope} do
       meal = meal_fixture(scope, %{name: "Porridge"})
       slots = Map.new(Mealplan.Households.list_meal_slots(scope), &{&1.default_key, &1})
@@ -103,7 +129,10 @@ defmodule MealplanWeb.MealLiveTest do
 
       assert names(scope, meal) == ["Green salad", "Pasta"]
 
-      view |> element("#meal-recipe-#{context.salad.id} button", "Remove") |> render_click()
+      view
+      |> element("#meal-recipe-#{context.salad.id} button[aria-label^=Remove]")
+      |> render_click()
+
       refute has_element?(view, "#meal-recipe-#{context.salad.id}")
       assert has_element?(view, "#candidate-#{context.salad.id}")
     end

@@ -81,6 +81,39 @@ defmodule Mealplan.MealsTest do
       assert Repo.get(Recipe, context.pasta.id), "the recipe itself stays"
     end
 
+    test "are reordered all at once, but only when the order covers exactly the meal's recipes",
+         %{scope: scope} = context do
+      meal = meal_fixture(scope, %{}, [context.pasta, context.salad, context.bread])
+      ids = fn recipes -> Enum.map(recipes, & &1.id) end
+
+      assert {:ok, _} =
+               Meals.reorder_recipes(
+                 scope,
+                 meal.id,
+                 ids.([context.bread, context.pasta, context.salad])
+               )
+
+      assert recipe_names(scope, meal) == ["Garlic bread", "Pasta", "Green salad"]
+
+      # A page that missed a change can't drop or re-add recipes.
+      assert Meals.reorder_recipes(scope, meal.id, ids.([context.salad, context.pasta])) ==
+               {:error, :stale}
+
+      assert Meals.reorder_recipes(
+               scope,
+               meal.id,
+               ids.([context.salad, context.pasta, context.pasta])
+             ) ==
+               {:error, :stale}
+
+      assert recipe_names(scope, meal) == ["Garlic bread", "Pasta", "Green salad"]
+
+      %{scope: other_scope} = household_fixture()
+
+      assert Meals.reorder_recipes(other_scope, meal.id, ids.([context.pasta])) ==
+               {:error, :not_found}
+    end
+
     test "only the household's active recipes can be added", %{scope: scope, pasta: pasta} do
       meal = meal_fixture(scope)
       %{scope: other_scope} = household_fixture()

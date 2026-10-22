@@ -10,108 +10,100 @@ defmodule MealplanWeb.RecipeLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} section="recipes">
-      <.link navigate={~p"/recipes"} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> Recipes
-      </.link>
-
-      <.header>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="recipes" wide>
+      <.page_header back={~p"/recipes"} back_label="Recipes">
         <span id="recipe-name">{@recipe.name}</span>
-        <:subtitle>
-          Serves {@recipe.servings}
+        <:meta>
+          <%= for {part, index} <- Enum.with_index(meta(@recipe, @parsed)) do %>
+            <span :if={index > 0} aria-hidden="true"> · </span>
+            <%= case part do %>
+              <% {:link, text, url} -> %>
+                <a href={url} class="link" target="_blank" rel="noopener noreferrer">{text}</a>
+              <% text -> %>
+                {text}
+            <% end %>
+          <% end %>
           <span :if={@recipe.archived_at} id="archived-badge" class="badge badge-ghost badge-sm ml-1">
             archived
           </span>
-        </:subtitle>
-        <:actions>
-          <%= if @recipe.archived_at do %>
-            <.button id="restore-recipe" phx-click="restore" variant="primary">
-              <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
-            </.button>
-          <% else %>
-            <div class="flex gap-2">
-              <a
-                :if={@owner?}
-                href={~p"/recipes/#{@recipe}/download"}
-                id="download-recipe"
-                class="btn btn-ghost"
-                download
-                aria-label="Download as a Cooklang file"
-              >
-                <.icon name="hero-arrow-down-tray" class="size-4" /><span class="hidden sm:inline">.cook</span>
-              </a>
-              <.button navigate={~p"/recipes/#{@recipe}/edit"} id="edit-recipe">
-                <.icon name="hero-pencil-square" class="size-4" /> Edit
-              </.button>
-              <button
-                type="button"
-                id="delete-recipe"
-                class="btn btn-ghost text-error"
-                phx-click="delete"
-              >
-                <.icon name="hero-trash" class="size-4" /> Delete
-              </button>
-            </div>
-          <% end %>
+        </:meta>
+        <:actions :if={@recipe.archived_at}>
+          <.button id="restore-recipe" phx-click="restore" variant="primary">
+            <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
+          </.button>
         </:actions>
-      </.header>
-
-      <div
-        :if={@deleting}
-        id="delete-recipe-panel"
-        role="alert"
-        class="space-y-3 rounded-box border border-warning/50 bg-warning/10 p-4"
-      >
-        <div class="space-y-1 text-sm">
-          <p :if={@deleting.meals != []}>
-            It will be taken out of {Enum.map_join(@deleting.meals, ", ", & &1.name)}.
-          </p>
-          <p :if={@deleting.archive?}>
-            Past plans used it, so it will be archived: hidden from lists and pickers, but kept
-            in history, and you can restore it.
-          </p>
-          <p :if={not @deleting.archive? and @deleting.meals == []}>
-            It isn't in any meal or plan.
-          </p>
-        </div>
-        <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_delete">Cancel</button>
+        <:actions :if={is_nil(@recipe.archived_at)}>
+          <.button navigate={~p"/recipes/#{@recipe}/edit"} id="edit-recipe">
+            <.icon name="hero-pencil-square" class="size-4" /> Edit
+          </.button>
+        </:actions>
+        <:menu :if={is_nil(@recipe.archived_at) and @owner?}>
+          <a href={~p"/recipes/#{@recipe}/download"} id="download-recipe" download>
+            <.icon name="hero-arrow-down-tray" class="size-4" /> Download .cook file
+          </a>
+        </:menu>
+        <:menu :if={is_nil(@recipe.archived_at)}>
           <button
             type="button"
-            id="confirm-delete-recipe"
-            class="btn btn-sm btn-error"
-            phx-click="confirm_delete"
+            id="delete-recipe"
+            class="text-error"
+            phx-click={JS.push("delete") |> JS.remove_attribute("open", to: "#page-header-menu")}
           >
-            {if @deleting.archive?, do: "Archive recipe", else: "Delete recipe"}
+            <.icon name="hero-trash" class="size-4" /> Delete recipe
           </button>
-        </div>
-      </div>
+        </:menu>
+      </.page_header>
 
-      <div
-        :if={@parsed.ingredients == [] and not steps?(@parsed)}
-        id="empty-recipe"
-        class="rounded-box border border-dashed border-base-300 px-4 py-8 text-center text-base-content/60"
+      <.confirm_panel
+        :if={@deleting}
+        id="delete-recipe-panel"
+        title={if @deleting.archive?, do: "Archive this recipe?", else: "Delete this recipe?"}
+        confirm={if @deleting.archive?, do: "Archive recipe", else: "Delete recipe"}
+        confirm_id="confirm-delete-recipe"
+        on_confirm="confirm_delete"
+        on_cancel="cancel_delete"
       >
-        No method or ingredients yet.
-        <.link navigate={~p"/recipes/#{@recipe}/edit"} class="link">Add them</.link>
-      </div>
-
-      <section :if={@parsed.ingredients != []} class="space-y-2">
-        <h2 class="text-xl font-semibold">Ingredients</h2>
-        <.ingredient_list id="ingredients" ingredients={@parsed.ingredients} />
-      </section>
-
-      <section :if={@parsed.cookware != []} class="space-y-2">
-        <h2 class="text-xl font-semibold">You'll need</h2>
-        <p id="cookware" class="text-base-content/80">
-          {@parsed.cookware |> Enum.map(& &1.name) |> Enum.uniq() |> Enum.join(", ")}
+        <p :if={@deleting.meals != []}>It will be taken out of these meals:</p>
+        <p :if={@deleting.archive?}>
+          Past plans used it, so it will be archived: hidden from lists and pickers, but kept
+          in history, and you can restore it.
         </p>
-      </section>
+        <p :if={not @deleting.archive? and @deleting.meals == []}>
+          It isn't in any meal or plan.
+        </p>
+        <:item :for={meal <- @deleting.meals}>{meal.name}</:item>
+      </.confirm_panel>
 
-      <section :if={steps?(@parsed)} class="space-y-2">
-        <h2 class="text-xl font-semibold">Method</h2>
-        <.method id="method" recipe={@parsed} />
-      </section>
+      <.empty_state :if={@parsed.ingredients == [] and not steps?(@parsed)} id="empty-recipe">
+        No method or ingredients yet.
+        <:action :if={is_nil(@recipe.archived_at)}>
+          <.button navigate={~p"/recipes/#{@recipe}/edit"}>Add them</.button>
+        </:action>
+      </.empty_state>
+
+      <div class="grid gap-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
+        <aside
+          :if={@parsed.ingredients != [] or @parsed.cookware != []}
+          class="space-y-6 lg:sticky lg:top-6"
+        >
+          <section :if={@parsed.ingredients != []} class="space-y-2">
+            <h2 class="text-xl font-semibold">Ingredients</h2>
+            <.ingredient_list id="ingredients" ingredients={@parsed.ingredients} />
+          </section>
+
+          <section :if={@parsed.cookware != []} class="space-y-2">
+            <h2 class="text-xl font-semibold">You'll need</h2>
+            <p id="cookware" class="text-base-content/80">
+              {@parsed.cookware |> Enum.map(& &1.name) |> Enum.uniq() |> Enum.join(", ")}
+            </p>
+          </section>
+        </aside>
+
+        <section :if={steps?(@parsed)} class="max-w-prose space-y-2 lg:col-start-2">
+          <h2 class="text-xl font-semibold">Method</h2>
+          <.method id="method" recipe={@parsed} />
+        </section>
+      </div>
     </Layouts.app>
     """
   end
@@ -188,4 +180,18 @@ defmodule MealplanWeb.RecipeLive.Show do
   end
 
   defp steps?(parsed), do: Enum.any?(parsed.sections, &(&1.blocks != []))
+
+  # Serves, then the time and source from the recipe's front matter (a web
+  # address as a link).
+  defp meta(recipe, parsed) do
+    time = parsed.metadata["time"] || parsed.metadata["time required"]
+
+    source =
+      case parsed.metadata["source"] do
+        "http" <> _rest = url -> {:link, URI.parse(url).host || url, url}
+        other -> other
+      end
+
+    Enum.reject(["Serves #{recipe.servings}", time, source], &(&1 in [nil, ""]))
+  end
 end

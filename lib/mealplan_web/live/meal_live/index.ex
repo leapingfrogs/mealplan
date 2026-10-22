@@ -8,35 +8,26 @@ defmodule MealplanWeb.MealLive.Index do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="meals">
-      <.header>
+      <.page_header>
         Meals
-        <:subtitle>What you plan: one or more recipes, or none at all, like "Eat out".</:subtitle>
-        <:actions>
-          <.link navigate={~p"/meals/archived"} id="archived-meals" class="btn btn-ghost">
-            Archived
+        <:meta>What you plan: one or more recipes, or none at all, like "Eat out".</:meta>
+        <:menu>
+          <.link navigate={~p"/meals/archived"} id="archived-meals">
+            <.icon name="hero-archive-box" class="size-4" /> Archived meals
           </.link>
-        </:actions>
-      </.header>
+        </:menu>
+      </.page_header>
 
-      <.form
+      <.add_form
         for={@form}
         id="new-meal-form"
+        field={@form[:name]}
+        label="New meal name"
+        placeholder="New meal, e.g. Sunday roast"
+        button="Create"
         phx-change="validate"
         phx-submit="create"
-        class="flex flex-wrap items-start gap-2"
-      >
-        <div class="flex-1 min-w-48">
-          <.input
-            field={@form[:name]}
-            placeholder="New meal, e.g. Sunday roast"
-            aria-label="New meal name"
-            autocomplete="off"
-          />
-        </div>
-        <.button variant="primary" phx-disable-with="Creating...">
-          <.icon name="hero-plus" class="size-4" /> Create
-        </.button>
-      </.form>
+      />
 
       <.form for={@search_form} id="meal-search" phx-change="search" phx-submit="search">
         <label class="input w-full">
@@ -54,37 +45,30 @@ defmodule MealplanWeb.MealLive.Index do
         </label>
       </.form>
 
-      <ul
-        id="meals"
-        phx-update="stream"
-        class="divide-y divide-base-300 rounded-box border border-base-300"
-      >
-        <li id="meals-empty" class="hidden only:block px-4 py-8 text-center text-base-content/60">
+      <.row_list id="meals" phx-update="stream">
+        <li id="meals-empty" class="hidden only:block px-4 py-8 text-center text-base-content/70">
           <%= if @search == "" do %>
             No meals yet. Create one above, then add recipes to it.
           <% else %>
             No meals match “{@search}”.
           <% end %>
         </li>
-        <li :for={{id, meal} <- @streams.meals} id={id}>
-          <.link
-            navigate={~p"/meals/#{meal}"}
-            class="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-base-200/60"
-          >
-            <span class="min-w-0">
-              <span class="block truncate font-medium">{meal.name}</span>
-              <span class="text-sm text-base-content/60">
-                {recipes(meal.recipe_count)}<span :if={meal.slots != []}> · {Enum.map_join(
-                  meal.slots,
-                  ", ",
-                  & &1.name
-                )}</span>
-              </span>
-            </span>
-            <.icon name="hero-chevron-right" class="size-4 shrink-0 opacity-40" />
-          </.link>
-        </li>
-      </ul>
+        <.list_row
+          :for={{id, meal} <- @streams.meals}
+          id={id}
+          navigate={~p"/meals/#{meal}"}
+          title={meal.name}
+        >
+          {meal.name}
+          <:meta>
+            {recipes(meal.recipe_count)}<span :if={meal.slots != []}> · {Enum.map_join(
+              meal.slots,
+              ", ",
+              & &1.name
+            )}</span>
+          </:meta>
+        </.list_row>
+      </.row_list>
     </Layouts.app>
     """
   end

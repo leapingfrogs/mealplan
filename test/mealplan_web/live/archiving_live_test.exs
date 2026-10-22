@@ -37,7 +37,8 @@ defmodule MealplanWeb.ArchivingLiveTest do
       {:ok, view, _html} = live(conn, ~p"/recipes/#{chilli}")
 
       view |> element("#delete-recipe") |> render_click()
-      assert has_element?(view, "#delete-recipe-panel", "taken out of Chilli night")
+      assert has_element?(view, "#delete-recipe-panel", "taken out of these meals")
+      assert has_element?(view, "#delete-recipe-panel li", "Chilli night")
       assert has_element?(view, "#confirm-delete-recipe", "Delete recipe")
 
       view |> element("#delete-recipe-panel button", "Cancel") |> render_click()
@@ -109,8 +110,8 @@ defmodule MealplanWeb.ArchivingLiveTest do
 
       assert has_element?(
                view,
-               "#delete-meal-panel",
-               Calendar.strftime(future, "%a %-d %b") <> " dinner"
+               "#delete-meal-panel li",
+               Calendar.strftime(future, "%a %-d %b") <> ", dinner"
              )
 
       {:ok, _list, html} =

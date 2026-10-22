@@ -65,7 +65,7 @@ defmodule MealplanWeb.UI do
           class="flex flex-wrap items-center gap-2 lg:flex-none lg:justify-end"
         >
           {render_slot(@actions)}
-          <details :if={@menu != []} id={"#{@id}-menu"} class="dropdown dropdown-end">
+          <details :if={@menu != []} id={"#{@id}-menu"} class="dropdown lg:dropdown-end">
             <summary class="btn btn-ghost btn-square list-none" aria-label={gettext("More actions")}>
               <.icon name="hero-ellipsis-horizontal" class="size-5" />
             </summary>
@@ -157,6 +157,7 @@ defmodule MealplanWeb.UI do
   attr :id, :string, required: true
   attr :navigate, :string, default: nil
   attr :title, :string, default: nil, doc: "full text for the tooltip when the title is clamped"
+  attr :sortable_id, :string, default: nil, doc: "makes the row draggable in a Sortable list"
   attr :class, :any, default: nil
   attr :rest, :global, include: ~w(phx-click phx-value-id phx-value-key aria-pressed disabled)
   slot :inner_block, required: true, doc: "the title"
@@ -169,7 +170,12 @@ defmodule MealplanWeb.UI do
     assigns = assign(assigns, :clickable?, assigns.rest[:"phx-click"] != nil)
 
     ~H"""
-    <li id={@id} class={["flex min-w-0 items-center", @class]}>
+    <li
+      id={@id}
+      data-id={@sortable_id}
+      draggable={@sortable_id && "true"}
+      class={["flex min-w-0 items-center", @class]}
+    >
       <%= cond do %>
         <% @navigate -> %>
           <.link navigate={@navigate} class={row_main_class()} title={@title}>
@@ -260,6 +266,11 @@ defmodule MealplanWeb.UI do
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :confirm, :string, required: true, doc: "the destructive button's label"
+
+  attr :confirm_id, :string,
+    default: nil,
+    doc: "the destructive button's id (default: id-confirm)"
+
   attr :on_confirm, :any, required: true, doc: "event or JS for the destructive button"
   attr :on_cancel, :any, required: true
   slot :inner_block, doc: "what will happen"
@@ -284,7 +295,12 @@ defmodule MealplanWeb.UI do
         <button type="button" class="btn btn-ghost" phx-click={@on_cancel}>
           {gettext("Cancel")}
         </button>
-        <button type="button" id={"#{@id}-confirm"} class="btn btn-error" phx-click={@on_confirm}>
+        <button
+          type="button"
+          id={@confirm_id || "#{@id}-confirm"}
+          class="btn btn-error"
+          phx-click={@on_confirm}
+        >
           {@confirm}
         </button>
       </div>

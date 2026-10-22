@@ -8,41 +8,33 @@ defmodule MealplanWeb.MealLive.Archived do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} section="meals">
-      <.link navigate={~p"/meals"} class="text-sm text-base-content/60 hover:text-base-content">
-        <.icon name="hero-arrow-left" class="size-4" /> Meals
-      </.link>
-
-      <.header>
+      <.page_header back={~p"/meals"} back_label="Meals">
         Archived meals
-        <:subtitle>Hidden from lists and pickers, but kept for past plans.</:subtitle>
-      </.header>
+        <:meta>Hidden from lists and pickers, but kept for past plans.</:meta>
+      </.page_header>
 
-      <p :if={@meals == []} id="no-archived" class="py-8 text-center text-base-content/60">
-        Nothing archived.
-      </p>
-      <ul
-        :if={@meals != []}
-        id="archived"
-        class="divide-y divide-base-300 rounded-box border border-base-300"
-      >
-        <li
+      <.empty_state :if={@meals == []} id="no-archived">Nothing archived.</.empty_state>
+
+      <.row_list :if={@meals != []} id="archived">
+        <.list_row
           :for={meal <- @meals}
           id={"archived-#{meal.id}"}
-          class="flex items-center justify-between gap-3 px-4 py-3"
+          navigate={~p"/meals/#{meal}"}
+          title={meal.name}
         >
-          <.link navigate={~p"/meals/#{meal}"} class="min-w-0 truncate hover:underline">
-            {meal.name}
-          </.link>
-          <button
-            type="button"
-            class="btn btn-sm btn-ghost"
-            phx-click="restore"
-            phx-value-id={meal.id}
-          >
-            <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
-          </button>
-        </li>
-      </ul>
+          {meal.name}
+          <:actions>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              phx-click="restore"
+              phx-value-id={meal.id}
+            >
+              <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
+            </button>
+          </:actions>
+        </.list_row>
+      </.row_list>
     </Layouts.app>
     """
   end
