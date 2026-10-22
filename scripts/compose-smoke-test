@@ -60,6 +60,13 @@ check() { # name expected actual
 }
 check "health/ready"            200 "$(curl -s -o /dev/null -w "%{http_code}" -H "Host: localhost" "http://127.0.0.1:$port/health/ready")"
 check "proxied https log-in"    200 "$(probe -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port/users/log-in")"
+# Every same-site file the page links to (digested in a release) is served.
+page=$(curl -s -H "Host: mealplan.test" -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port/users/log-in")
+links=$(grep -oE '(href|src)="/[^"?]+\.[a-z]+(\?[^"]*)?"' <<<"$page" | sed -E 's/^[a-z]+="//; s/"$//' | sort -u)
+check "log-in page links files" 1 "$([ -n "$links" ] && echo 1 || echo 0)"
+for path in $links; do
+  check "linked $path" 200 "$(probe -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port$path")"
+done
 check "proxied http redirects"  301 "$(probe "http://127.0.0.1:$port/users/log-in")"
 check "app container healthy"   healthy "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q app)")"
 check "db publishes no host ports" 0 "$(docker inspect -f '{{len .HostConfig.PortBindings}}' "$("${compose[@]}" ps -q db)")"

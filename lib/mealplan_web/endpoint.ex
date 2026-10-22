@@ -36,6 +36,9 @@ defmodule MealplanWeb.Endpoint do
     from: :mealplan,
     gzip: not code_reloading?,
     only: MealplanWeb.static_paths(),
+    # `only` matches whole names, so this serves the digested copies of the
+    # top-level files (favicon-<digest>.ico and so on) that pages link to.
+    only_matching: ~w(favicon apple-touch-icon manifest),
     raise_on_missing_only: code_reloading?
 
   # Code reloading can be explicitly enabled under the
