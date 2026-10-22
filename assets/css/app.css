@@ -187,3 +187,9 @@ h1, h2, h3 {
 .label {
   font-size: 0.875rem;
 }
+
+/* daisyUI pads every field's fieldset 4 px top and bottom, which drops an
+   input below a button placed beside it; spacing comes from margins instead. */
+.fieldset {
+  padding-block: 0;
+}
