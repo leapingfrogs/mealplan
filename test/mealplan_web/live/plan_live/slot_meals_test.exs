@@ -49,7 +49,7 @@ defmodule MealplanWeb.PlanLive.SlotMealsTest do
     assert open?(c.view, "slot-meals")
     refute open?(c.view, "other-meals")
     refute open?(c.view, "recipe-choices")
-    assert has_element?(c.view, "#other-meals ul.hidden")
+    assert has_element?(c.view, "#other-meals-body.hidden")
   end
 
   test "a section opens and closes when tapped", c do
@@ -57,7 +57,7 @@ defmodule MealplanWeb.PlanLive.SlotMealsTest do
 
     c.view |> element("#other-meals > button") |> render_click()
     assert open?(c.view, "other-meals")
-    refute has_element?(c.view, "#other-meals ul.hidden")
+    refute has_element?(c.view, "#other-meals-body.hidden")
 
     c.view |> element("#slot-meals > button") |> render_click()
     refute open?(c.view, "slot-meals")
