@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.3](https://github.com/leapingfrogs/mealplan/compare/v0.6.2...v0.6.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deps:** update bandit and plug_crypto for security advisories ([#79](https://github.com/leapingfrogs/mealplan/issues/79)) ([4961d4a](https://github.com/leapingfrogs/mealplan/commit/4961d4a1efb82607fe56c59d1c478db81deb5c76))
+
+
+### Build and Dependencies
+
+* **deps-dev:** bump fast-uri from 3.1.8 to 3.1.9 ([#81](https://github.com/leapingfrogs/mealplan/issues/81)) ([a7c0925](https://github.com/leapingfrogs/mealplan/commit/a7c09254a6020cdfd54e33f68e6841d52738905a))
+* **deps:** bump debian from `918311b` to `a29215f` in the docker-images group ([#77](https://github.com/leapingfrogs/mealplan/issues/77)) ([3d12f44](https://github.com/leapingfrogs/mealplan/commit/3d12f447d67b018bc6d06741a5fdc77c641bac99))
+
 ## [0.6.2](https://github.com/leapingfrogs/mealplan/compare/v0.6.1...v0.6.2) (2026-10-22)
 
 
