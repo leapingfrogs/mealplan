@@ -4,7 +4,7 @@ defmodule Mealplan.MixProject do
   def project do
     [
       app: :mealplan,
-      version: "0.6.3",
+      version: "0.6.4",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

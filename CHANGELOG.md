@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/leapingfrogs/mealplan/compare/v0.6.3...v0.6.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deps:** update Erlang/OTP to 29.1.2 for security fixes ([#82](https://github.com/leapingfrogs/mealplan/issues/82)) ([29f582c](https://github.com/leapingfrogs/mealplan/commit/29f582cbf08218472b800240ae43af4cd5d5949b))
+
 ## [0.6.3](https://github.com/leapingfrogs/mealplan/compare/v0.6.2...v0.6.3) (2026-10-27)
 
 
