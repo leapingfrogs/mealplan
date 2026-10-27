@@ -10,7 +10,7 @@
 # ---------------------------------------------------------------------------
 # Build stage
 # ---------------------------------------------------------------------------
-FROM hexpm/elixir:1.20.4-erlang-29.1.1-debian-trixie-20261005-slim@sha256:0b69f586e643c1a26d23744879d737f701d4278dae0053778785e1a6810ef969 AS build
+FROM hexpm/elixir:1.20.4-erlang-29.1.2-debian-trixie-20261005-slim@sha256:c2cc01de71909db898a4d9ee3a379dcf1b1403b292a5b1ff76f4f0e133e75077 AS build
 
 # build-essential: argon2_elixir NIF; git: git-sourced asset deps (heroicons, daisyui)
 RUN apt-get update \
